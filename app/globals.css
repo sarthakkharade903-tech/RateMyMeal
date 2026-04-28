@@ -203,100 +203,167 @@ body {
    OWNER DASHBOARD
 ══════════════════════════════════════ */
 
-.owner-page {
-  max-width: 680px;
-  margin: 2rem auto;
-  padding: 0 1rem 4rem;
+.ow-shell {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 4rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.owner-page h1 {
-  font-size: 1.6rem;
-  margin-bottom: 0.25rem;
-}
-
-.subtitle {
-  color: #555;
-  font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-}
-
-.section {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  padding: 1.25rem 1.5rem;
+/* Top bar */
+.ow-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1.25rem;
 }
 
-.section h2 {
+.ow-brand {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #764ba2;
+}
+
+.ow-date {
   font-size: 0.8rem;
+  color: #888;
+}
+
+/* Shared card base */
+.ow-card {
+  border-radius: 14px;
+  padding: 1.25rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+/* ── Alert card ── */
+.ow-alert {
+  border: 2px solid transparent;
+}
+
+.ow-alert--critical {
+  background: #fff5f5;
+  border-color: #e74c3c;
+}
+
+.ow-alert--warning {
+  background: #fffbf0;
+  border-color: #f39c12;
+}
+
+.ow-alert--good {
+  background: #f0fdf4;
+  border-color: #27ae60;
+}
+
+.ow-alert-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #666;
-  margin-bottom: 0.75rem;
-}
-
-.ratings-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.95rem;
-}
-
-.ratings-table th,
-.ratings-table td {
-  text-align: left;
-  padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.ratings-table th {
-  font-weight: 600;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.6rem;
   color: #555;
-  font-size: 0.85rem;
 }
 
-.problem-list {
-  padding-left: 1.2rem;
+.ow-alert-metric {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #111;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.ow-alert-score {
+  margin-left: auto;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #764ba2;
+}
+
+.ow-alert-score small {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #aaa;
+}
+
+.ow-alert-action {
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.5;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  padding-top: 0.6rem;
+  margin-top: 0.2rem;
+}
+
+/* ── Summary strip ── */
+.ow-summary {
+  background: #fff;
+  border: 1.5px solid #e8e8e8;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 1.1rem 1rem;
+}
+
+.ow-stat {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  align-items: center;
+  gap: 0.2rem;
 }
 
-.problem-item {
-  font-size: 0.95rem;
-  line-height: 1.5;
+.ow-stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #111;
+  line-height: 1;
 }
 
-.problem-item.high {
-  color: #c0392b;
-  font-weight: 600;
-}
-
-.problem-item.medium {
-  color: #e67e22;
-}
-
-.ok-msg {
-  color: #27ae60;
-  font-weight: 600;
-}
-
-.muted {
-  color: #888;
-  font-size: 0.85rem;
-}
-
-.error-box {
-  border-color: #e74c3c;
-  color: #c0392b;
-}
-
-.footer-note {
-  text-align: center;
+.ow-stat-value small {
+  font-size: 1rem;
+  font-weight: 400;
   color: #aaa;
-  font-size: 0.8rem;
-  margin-top: 1rem;
+}
+
+.ow-stat-label {
+  font-size: 0.78rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ow-divider {
+  width: 1px;
+  height: 2.5rem;
+  background: #e8e8e8;
+}
+
+/* ── Empty / error states ── */
+.ow-empty {
+  background: #fff;
+  border: 1.5px solid #e8e8e8;
+  text-align: center;
+  padding: 2.5rem 1.25rem;
+}
+
+.ow-empty-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+.ow-empty-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem; }
+.ow-empty-sub  { font-size: 0.88rem; color: #888; }
+
+.ow-error {
+  background: #fff5f5;
+  border: 1.5px solid #e74c3c;
+  color: #c0392b;
+  font-size: 0.9rem;
+}
+
+.ow-refresh {
+  text-align: center;
+  color: #bbb;
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
 }
 
 /* ══════════════════════════════════════

@@ -1,5 +1,3 @@
-/*    taskkill /PID 33408 /F       npm run dev     */
-/* http://localhost:3000/owner */
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -8,67 +6,46 @@ const supabase = createClient(
 );
 
 const METRICS = ['taste', 'temperature', 'quantity', 'hygiene', 'experience'];
-const LABELS = {
-  taste:       'Taste',
-  temperature: 'Temperature',
-  quantity:    'Quantity',
-  hygiene:     'Hygiene',
-  experience:  'Overall Experience',
+
+const META = {
+  taste:       { label: 'Taste',       icon: '🍽️', action: 'Review today\'s seasoning or recipe with the kitchen team.' },
+  temperature: { label: 'Temperature', icon: '🌡️', action: 'Ensure food is being served hot — check holding temperatures.' },
+  quantity:    { label: 'Quantity',    icon: '⚖️', action: 'Portion sizes may feel insufficient — review with kitchen staff.' },
+  hygiene:     { label: 'Hygiene',     icon: '🧹', action: 'Inspect the kitchen and service area cleanliness right away.' },
+  experience:  { label: 'Experience',  icon: '✨', action: 'Check service speed and staff friendliness with your team.' },
 };
 
-// ---------- helpers ----------
+// ── helpers ───────────────────────────────────────────────────
 
 function avg(arr) {
   if (!arr.length) return null;
   return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
 
-function calcAverages(rows) {
-  const result = {};
+function lowestMetric(rows) {
+  let worst = null;
+  let worstAvg = Infinity;
+
   for (const m of METRICS) {
     const vals = rows.map((r) => r[m]).filter((v) => v != null);
-    result[m] = avg(vals);
-  }
-  return result;
-}
-
-function detectProblems(todayAverages, last5Rows) {
-  const problems = [];
-
-  // Rule 1 – any metric average below 3 today
-  for (const m of METRICS) {
-    const a = todayAverages[m];
-    if (a !== null && a < 3) {
-      problems.push({
-        severity: 'high',
-        msg: `${LABELS[m]} is low today (avg ${a.toFixed(1)}/5) — needs immediate attention.`,
-      });
+    const a = avg(vals);
+    if (a !== null && a < worstAvg) {
+      worstAvg = a;
+      worst = m;
     }
   }
 
-  // Rule 2 – significant drop in last 5 entries (most recent vs prev 4)
-  if (last5Rows.length >= 3) {
-    for (const m of METRICS) {
-      const vals = last5Rows.map((r) => r[m]).filter((v) => v != null);
-      if (vals.length < 3) continue;
-      const mostRecent = vals[0];
-      const prevAvg    = avg(vals.slice(1));
-      if (prevAvg - mostRecent >= 1.5) {
-        problems.push({
-          severity: 'medium',
-          msg: `Recent drop in ${LABELS[m]}: last entry was ${mostRecent}/5 vs previous avg of ${prevAvg.toFixed(1)}/5.`,
-        });
-      }
-    }
-  }
-
-  // Sort: high first, then medium — return top 3
-  const order = { high: 0, medium: 1 };
-  problems.sort((a, b) => order[a.severity] - order[b.severity]);
-  return problems.slice(0, 3);
+  return worst ? { key: worst, avg: worstAvg } : null;
 }
 
-// ---------- data fetching ----------
+function overallAvg(rows) {
+  const all = rows.flatMap((r) =>
+    METRICS.map((m) => r[m]).filter((v) => v != null)
+  );
+  return avg(all);
+}
+
+// ── data ──────────────────────────────────────────────────────
 
 async function getTodayFeedback() {
   const startOfDay = new Date();
@@ -76,156 +53,104 @@ async function getTodayFeedback() {
 
   const { data, error } = await supabase
     .from('feedback')
-    .select('taste, temperature, quantity, hygiene, experience, meal_type, created_at')
-    .gte('created_at', startOfDay.toISOString())
-    .order('created_at', { ascending: false });
+    .select('taste, temperature, quantity, hygiene, experience')
+    .gte('created_at', startOfDay.toISOString());
 
   if (error) throw error;
   return data ?? [];
 }
 
-async function getLast5Entries() {
-  const { data, error } = await supabase
-    .from('feedback')
-    .select('taste, temperature, quantity, hygiene, experience, created_at')
-    .order('created_at', { ascending: false })
-    .limit(5);
+// ── page ──────────────────────────────────────────────────────
 
-  if (error) throw error;
-  return data ?? [];
-}
-
-// ---------- page ----------
-
-export const revalidate = 60; // re-fetch every 60 s on the server
+export const revalidate = 60;
 
 export default async function OwnerPage() {
-  let todayRows = [];
-  let last5Rows = [];
+  let rows = [];
   let fetchError = null;
 
   try {
-    [todayRows, last5Rows] = await Promise.all([
-      getTodayFeedback(),
-      getLast5Entries(),
-    ]);
+    rows = await getTodayFeedback();
   } catch (err) {
-    fetchError = err.message ?? 'Unknown error fetching data.';
+    fetchError = err.message ?? 'Unknown error';
   }
 
-  const todayAverages = calcAverages(todayRows);
-  const problems      = fetchError ? [] : detectProblems(todayAverages, last5Rows);
+  const total   = rows.length;
+  const overall = overallAvg(rows);
+  const worst   = total > 0 ? lowestMetric(rows) : null;
 
-  // Meal type breakdown
-  const mealCounts = {};
-  for (const row of todayRows) {
-    const mt = row.meal_type ?? 'unknown';
-    mealCounts[mt] = (mealCounts[mt] ?? 0) + 1;
-  }
+  const todayLabel = new Date().toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+
+  // Determine alert level
+  const alertLevel =
+    !worst             ? 'none'
+    : worst.avg < 2.5  ? 'critical'
+    : worst.avg < 3.5  ? 'warning'
+    : 'good';
 
   return (
-    <main className="owner-page">
-      <h1>Owner Dashboard</h1>
-      <p className="subtitle">
-        {new Date().toLocaleDateString('en-IN', {
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-        })}
-      </p>
+    <div className="ow-shell">
 
+      {/* Top bar */}
+      <header className="ow-header">
+        <span className="ow-brand">RateMyMeal</span>
+        <span className="ow-date">{todayLabel}</span>
+      </header>
+
+      {/* Error */}
       {fetchError && (
-        <section className="section error-box">
-          <p>⚠️ Could not load data: {fetchError}</p>
-        </section>
+        <div className="ow-card ow-error">
+          ⚠️ Could not load data: {fetchError}
+        </div>
       )}
 
-      {/* --- Summary --- */}
-      <section className="section">
-        <h2>Today at a Glance</h2>
-        <p>Total responses: <strong>{todayRows.length}</strong></p>
+      {/* No data yet */}
+      {!fetchError && total === 0 && (
+        <div className="ow-card ow-empty">
+          <p className="ow-empty-icon">☕</p>
+          <p className="ow-empty-title">No feedback yet today</p>
+          <p className="ow-empty-sub">Check back after the first meal service.</p>
+        </div>
+      )}
 
-        {Object.keys(mealCounts).length > 0 && (
-          <p>
-            Meal breakdown:{' '}
-            {Object.entries(mealCounts)
-              .map(([mt, count]) => `${mt} (${count})`)
-              .join(', ')}
+      {/* Main focus alert */}
+      {worst && (
+        <div className={`ow-card ow-alert ow-alert--${alertLevel}`}>
+          <p className="ow-alert-eyebrow">
+            {alertLevel === 'critical' ? '🚨 Needs Immediate Attention'
+            : alertLevel === 'warning'  ? '⚠️ Watch This Today'
+            : '✅ Looking Good'}
           </p>
-        )}
 
-        {todayRows.length === 0 && !fetchError && (
-          <p className="muted">No feedback submitted yet today.</p>
-        )}
-      </section>
+          <p className="ow-alert-metric">
+            {META[worst.key].icon} {META[worst.key].label}
+            <span className="ow-alert-score">{worst.avg.toFixed(1)}<small>/5</small></span>
+          </p>
 
-      {/* --- Averages --- */}
-      {todayRows.length > 0 && (
-        <section className="section">
-          <h2>Average Ratings Today</h2>
-          <table className="ratings-table">
-            <tbody>
-              {METRICS.map((m) => {
-                const a = todayAverages[m];
-                const flag = a !== null && a < 3 ? ' ⚠️' : '';
-                return (
-                  <tr key={m}>
-                    <td>{LABELS[m]}</td>
-                    <td>
-                      <strong>{a !== null ? `${a.toFixed(1)} / 5${flag}` : 'N/A'}</strong>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
+          <p className="ow-alert-action">→ {META[worst.key].action}</p>
+        </div>
       )}
 
-      {/* --- Problems --- */}
-      <section className="section">
-        <h2>Issues Detected</h2>
-        {problems.length === 0 ? (
-          <p className="ok-msg">✅ No major issues found.</p>
-        ) : (
-          <ol className="problem-list">
-            {problems.map((p, i) => (
-              <li key={i} className={`problem-item ${p.severity}`}>
-                {p.msg}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      {/* --- Last 5 entries raw --- */}
-      {last5Rows.length > 0 && (
-        <section className="section">
-          <h2>Last 5 Entries (for trend check)</h2>
-          <table className="ratings-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                {METRICS.map((m) => <th key={m}>{LABELS[m]}</th>)}
-                <th>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {last5Rows.map((row, i) => (
-                <tr key={i}>
-                  <td>{i + 1}</td>
-                  {METRICS.map((m) => <td key={m}>{row[m] ?? '—'}</td>)}
-                  <td className="muted">
-                    {new Date(row.created_at).toLocaleTimeString('en-IN', {
-                      hour: '2-digit', minute: '2-digit',
-                    })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+      {/* Summary strip */}
+      {total > 0 && (
+        <div className="ow-card ow-summary">
+          <div className="ow-stat">
+            <span className="ow-stat-value">{total}</span>
+            <span className="ow-stat-label">responses today</span>
+          </div>
+          <div className="ow-divider" />
+          <div className="ow-stat">
+            <span className="ow-stat-value">
+              {overall !== null ? overall.toFixed(1) : '—'}
+              <small>/5</small>
+            </span>
+            <span className="ow-stat-label">avg rating</span>
+          </div>
+        </div>
       )}
 
-      <p className="footer-note">Auto-refreshes every 60 seconds. Visit this page anytime.</p>
-    </main>
+      <p className="ow-refresh">Refreshes every 60 s</p>
+    </div>
   );
 }
