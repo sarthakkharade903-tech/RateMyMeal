@@ -51,8 +51,8 @@ export default function FeedbackPage() {
     setLoading(false);
 
     if (error) {
-      alert('Error submitting');
-      console.error(error);
+      alert(error.message)
+      console.log(error)
     } else {
       alert('Submitted');
       setMealType('');
