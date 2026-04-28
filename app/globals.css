@@ -298,3 +298,131 @@ body {
   font-size: 0.8rem;
   margin-top: 1rem;
 }
+
+/* ══════════════════════════════════════
+   THANK-YOU SCREEN
+══════════════════════════════════════ */
+
+.ty-card {
+  text-align: center;
+  padding-bottom: 2rem;
+}
+
+.ty-confetti {
+  font-size: 3rem;
+  margin-top: 2rem;
+  animation: bounce 0.6s ease;
+}
+
+@keyframes bounce {
+  0%   { transform: scale(0.5); opacity: 0; }
+  70%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.ty-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.75rem auto 1rem;
+  animation: pop 0.4s ease;
+}
+
+@keyframes pop {
+  0%   { transform: scale(0); opacity: 0; }
+  80%  { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.ty-title {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 0.3rem;
+}
+
+.ty-sub {
+  color: #666;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+}
+
+.ty-stats {
+  background: #f8f7ff;
+  border: 1.5px solid #e0dcff;
+  border-radius: 14px;
+  margin: 0 1.25rem 1.25rem;
+  padding: 1.25rem 1rem;
+}
+
+.ty-stat-box {
+  margin-bottom: 0.6rem;
+}
+
+/* Stars */
+.stars {
+  font-size: 1.8rem;
+  letter-spacing: 2px;
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.star--full  { color: #f4c430; }
+.star--half  { color: #f4c430; opacity: 0.6; }
+.star--empty { color: #ddd; }
+
+.ty-stat-label {
+  font-size: 1rem;
+  color: #444;
+}
+
+.ty-stat-label strong {
+  color: #764ba2;
+  font-size: 1.1rem;
+}
+
+.ty-divider {
+  height: 1px;
+  background: #e0dcff;
+  margin: 0.85rem 0;
+}
+
+.ty-people {
+  font-size: 0.97rem;
+  color: #444;
+  margin-bottom: 0.75rem;
+}
+
+.ty-people strong {
+  color: #667eea;
+  font-size: 1.1rem;
+}
+
+.ty-msg {
+  font-size: 0.88rem;
+  color: #777;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.fb-submit--done {
+  background: #f0f0f0;
+  color: #555;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.fb-submit--done:active {
+  transform: scale(0.97);
+  background: #e4e4e4;
+}
+
+.ty-done {
+  margin-top: 0.5rem;
+}
