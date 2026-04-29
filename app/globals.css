@@ -135,7 +135,6 @@ body {
   align-items: center;
   justify-content: center;
   transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
-  /* Minimum 44px touch target */
   min-width: 44px;
   min-height: 44px;
 }
@@ -199,170 +198,20 @@ body {
   cursor: not-allowed;
 }
 
-/* ══════════════════════════════════════
-   OWNER DASHBOARD
-══════════════════════════════════════ */
-
-.ow-shell {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 1.25rem 1rem 4rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-/* Top bar */
-.ow-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.25rem;
-}
-
-.ow-brand {
-  font-weight: 700;
-  font-size: 1rem;
-  color: #764ba2;
-}
-
-.ow-date {
-  font-size: 0.8rem;
-  color: #888;
-}
-
-/* Shared card base */
-.ow-card {
-  border-radius: 14px;
-  padding: 1.25rem 1.25rem;
-  margin-bottom: 1rem;
-}
-
-/* ── Alert card ── */
-.ow-alert {
-  border: 2px solid transparent;
-}
-
-.ow-alert--critical {
-  background: #fff5f5;
-  border-color: #e74c3c;
-}
-
-.ow-alert--warning {
-  background: #fffbf0;
-  border-color: #f39c12;
-}
-
-.ow-alert--good {
-  background: #f0fdf4;
-  border-color: #27ae60;
-}
-
-.ow-alert-eyebrow {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 0.6rem;
+/* Done button */
+.fb-submit--done {
+  background: #f0f0f0;
   color: #555;
+  font-weight: 600;
+  box-shadow: none;
 }
 
-.ow-alert-metric {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: #111;
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.6rem;
+.fb-submit--done:active {
+  transform: scale(0.97);
+  background: #e4e4e4;
 }
 
-.ow-alert-score {
-  margin-left: auto;
-  font-size: 1.8rem;
-  font-weight: 900;
-  color: #764ba2;
-}
-
-.ow-alert-score small {
-  font-size: 1rem;
-  font-weight: 500;
-  color: #aaa;
-}
-
-.ow-alert-action {
-  font-size: 0.9rem;
-  color: #555;
-  line-height: 1.5;
-  border-top: 1px solid rgba(0,0,0,0.06);
-  padding-top: 0.6rem;
-  margin-top: 0.2rem;
-}
-
-/* ── Summary strip ── */
-.ow-summary {
-  background: #fff;
-  border: 1.5px solid #e8e8e8;
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding: 1.1rem 1rem;
-}
-
-.ow-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.ow-stat-value {
-  font-size: 2rem;
-  font-weight: 800;
-  color: #111;
-  line-height: 1;
-}
-
-.ow-stat-value small {
-  font-size: 1rem;
-  font-weight: 400;
-  color: #aaa;
-}
-
-.ow-stat-label {
-  font-size: 0.78rem;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.ow-divider {
-  width: 1px;
-  height: 2.5rem;
-  background: #e8e8e8;
-}
-
-/* ── Empty / error states ── */
-.ow-empty {
-  background: #fff;
-  border: 1.5px solid #e8e8e8;
-  text-align: center;
-  padding: 2.5rem 1.25rem;
-}
-
-.ow-empty-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
-.ow-empty-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem; }
-.ow-empty-sub  { font-size: 0.88rem; color: #888; }
-
-.ow-error {
-  background: #fff5f5;
-  border: 1.5px solid #e74c3c;
-  color: #c0392b;
-  font-size: 0.9rem;
-}
-
-.ow-refresh {
-  text-align: center;
-  color: #bbb;
-  font-size: 0.75rem;
+.ty-done {
   margin-top: 0.5rem;
 }
 
@@ -379,6 +228,7 @@ body {
   font-size: 3rem;
   margin-top: 2rem;
   animation: bounce 0.6s ease;
+  display: block;
 }
 
 @keyframes bounce {
@@ -432,7 +282,6 @@ body {
   margin-bottom: 0.6rem;
 }
 
-/* Stars */
 .stars {
   font-size: 1.8rem;
   letter-spacing: 2px;
@@ -478,18 +327,237 @@ body {
   font-style: italic;
 }
 
-.fb-submit--done {
-  background: #f0f0f0;
+/* ══════════════════════════════════════
+   OWNER DASHBOARD
+══════════════════════════════════════ */
+
+.ow-shell {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 4rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Top bar */
+.ow-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.ow-brand {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #764ba2;
+}
+
+.ow-date {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+/* Shared card base */
+.ow-card {
+  border-radius: 14px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+/* ── Alert card ── */
+.ow-alert {
+  border: 2px solid transparent;
+}
+
+.ow-alert--critical {
+  background: #fff5f5;
+  border-color: #e74c3c;
+}
+
+.ow-alert--warning {
+  background: #fffbf0;
+  border-color: #f39c12;
+}
+
+.ow-alert--good {
+  background: #f0fdf4;
+  border-color: #27ae60;
+}
+
+/* Eyebrow + timestamp row */
+.ow-alert-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.ow-alert-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
   color: #555;
+  flex: 1;
+}
+
+.ow-timestamp {
+  font-size: 0.72rem;
+  color: #999;
+  white-space: nowrap;
+  padding-top: 0.05rem;
+}
+
+.ow-alert-metric {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #111;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.ow-alert-score {
+  margin-left: auto;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #764ba2;
+}
+
+.ow-alert-score small {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #aaa;
+}
+
+/* Context row: meal badge + trend badge */
+.ow-context-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.73rem;
   font-weight: 600;
-  box-shadow: none;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  line-height: 1.4;
 }
 
-.fb-submit--done:active {
-  transform: scale(0.97);
-  background: #e4e4e4;
+.badge--meal { background: #ede9fe; color: #5b21b6; }
+.badge--drop { background: #fef2f2; color: #b91c1c; }
+.badge--up   { background: #f0fdf4; color: #15803d; }
+.badge--flat { background: #f5f5f5; color: #666;    }
+
+.ow-alert-action {
+  font-size: 0.88rem;
+  color: #444;
+  line-height: 1.55;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 0.65rem;
 }
 
-.ty-done {
+/* ── Summary strip ── */
+.ow-summary {
+  background: #fff;
+  border: 1.5px solid #e8e8e8;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 1.1rem 1rem;
+}
+
+.ow-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.ow-stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #111;
+  line-height: 1;
+}
+
+.ow-stat-value small {
+  font-size: 1rem;
+  font-weight: 400;
+  color: #aaa;
+}
+
+.ow-stat-label {
+  font-size: 0.78rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ow-divider {
+  width: 1px;
+  height: 2.5rem;
+  background: #e8e8e8;
+}
+
+/* ── Comments card ── */
+.ow-comments {
+  background: #fff;
+  border: 1.5px solid #e8e8e8;
+}
+
+.ow-comments-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  margin-bottom: 0.65rem;
+}
+
+.ow-comment-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.ow-comment-item {
+  font-size: 0.9rem;
+  color: #444;
+  line-height: 1.45;
+  padding-left: 0.75rem;
+  border-left: 3px solid #e0d4f7;
+  font-style: italic;
+}
+
+/* ── Empty / error states ── */
+.ow-empty {
+  background: #fff;
+  border: 1.5px solid #e8e8e8;
+  text-align: center;
+  padding: 2.5rem 1.25rem;
+}
+
+.ow-empty-icon  { font-size: 2.5rem; margin-bottom: 0.5rem; display: block; }
+.ow-empty-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem; }
+.ow-empty-sub   { font-size: 0.88rem; color: #888; }
+
+.ow-error {
+  background: #fff5f5;
+  border: 1.5px solid #e74c3c;
+  color: #c0392b;
+  font-size: 0.9rem;
+}
+
+.ow-refresh {
+  text-align: center;
+  color: #bbb;
+  font-size: 0.75rem;
   margin-top: 0.5rem;
 }

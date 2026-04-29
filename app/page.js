@@ -20,7 +20,7 @@ const defaultRatings = {
   quantity: null, hygiene: null, experience: null,
 };
 
-// ── fetch today's aggregate stats ──────────────────────────────
+// ── today's stats after submit ────────────────────────────────
 async function fetchTodayStats() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
@@ -38,35 +38,31 @@ async function fetchTodayStats() {
     )
   );
   const avg = allVals.reduce((a, b) => a + b, 0) / allVals.length;
-
   return { count: data.length, avg: Math.round(avg * 10) / 10 };
 }
 
-// ── star display helper ────────────────────────────────────────
+// ── star display ───────────────────────────────────────────────
 function Stars({ value }) {
-  const full  = Math.floor(value);
-  const half  = value - full >= 0.5;
+  const full = Math.floor(value);
+  const half = value - full >= 0.5;
   return (
     <span className="stars" aria-label={`${value} out of 5`}>
       {Array.from({ length: 5 }, (_, i) => {
-        if (i < full)        return <span key={i} className="star star--full">★</span>;
-        if (i === full && half) return <span key={i} className="star star--half">★</span>;
-        return                     <span key={i} className="star star--empty">★</span>;
+        if (i < full)              return <span key={i} className="star star--full">★</span>;
+        if (i === full && half)    return <span key={i} className="star star--half">★</span>;
+        return                            <span key={i} className="star star--empty">★</span>;
       })}
     </span>
   );
 }
 
 // ── thank-you screen ──────────────────────────────────────────
-function ThankYouScreen({ stats, onRateAgain }) {
+function ThankYouScreen({ stats, onDone }) {
   return (
     <div className="fb-shell">
       <div className="fb-card ty-card">
-
         <div className="ty-confetti" aria-hidden>🎉</div>
-
         <div className="ty-circle">✓</div>
-
         <h1 className="ty-title">Thank you!</h1>
         <p className="ty-sub">Your voice makes every meal better 🙏</p>
 
@@ -78,15 +74,11 @@ function ThankYouScreen({ stats, onRateAgain }) {
                 Today's rating: <strong>{stats.avg} / 5</strong>
               </p>
             </div>
-
             <div className="ty-divider" />
-
             <p className="ty-people">
-              🙌 You're among{' '}
-              <strong>{stats.count}</strong>{' '}
+              🙌 You're among <strong>{stats.count}</strong>{' '}
               {stats.count === 1 ? 'person' : 'people'} who rated today
             </p>
-
             <p className="ty-msg">
               {stats.avg >= 4
                 ? "Glad you're enjoying the food! Keep the feedback coming 🌟"
@@ -100,11 +92,10 @@ function ThankYouScreen({ stats, onRateAgain }) {
         <button
           id="done-btn"
           className="fb-submit fb-submit--done ty-done"
-          onClick={onRateAgain}
+          onClick={onDone}
         >
           Done 👍
         </button>
-
       </div>
     </div>
   );
@@ -112,11 +103,11 @@ function ThankYouScreen({ stats, onRateAgain }) {
 
 // ── main form ─────────────────────────────────────────────────
 export default function FeedbackPage() {
-  const [mealType, setMealType]   = useState(null);
-  const [ratings, setRatings]     = useState(defaultRatings);
-  const [comment, setComment]     = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [mealType, setMealType]     = useState(null);
+  const [ratings, setRatings]       = useState(defaultRatings);
+  const [comment, setComment]       = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [submitted, setSubmitted]   = useState(false);
   const [todayStats, setTodayStats] = useState(null);
 
   const allRated  = RATING_FIELDS.every(({ key }) => ratings[key] !== null);
@@ -146,14 +137,13 @@ export default function FeedbackPage() {
       return;
     }
 
-    // Fetch today's stats for the thank-you screen
     const stats = await fetchTodayStats();
     setTodayStats(stats);
     setLoading(false);
     setSubmitted(true);
   }
 
-  function handleRateAgain() {
+  function handleDone() {
     setMealType(null);
     setRatings(defaultRatings);
     setComment('');
@@ -162,7 +152,7 @@ export default function FeedbackPage() {
   }
 
   if (submitted) {
-    return <ThankYouScreen stats={todayStats} onRateAgain={handleRateAgain} />;
+    return <ThankYouScreen stats={todayStats} onDone={handleDone} />;
   }
 
   return (

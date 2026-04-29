@@ -1,3 +1,5 @@
+/*    taskkill /PID 33408 /F       npm run dev     */
+/* http://localhost:3000/owner */
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -8,41 +10,91 @@ const supabase = createClient(
 const METRICS = ['taste', 'temperature', 'quantity', 'hygiene', 'experience'];
 
 const META = {
-  taste:       { label: 'Taste',       icon: '🍽️', action: 'Review today\'s seasoning or recipe with the kitchen team.' },
-  temperature: { label: 'Temperature', icon: '🌡️', action: 'Ensure food is being served hot — check holding temperatures.' },
-  quantity:    { label: 'Quantity',    icon: '⚖️', action: 'Portion sizes may feel insufficient — review with kitchen staff.' },
-  hygiene:     { label: 'Hygiene',     icon: '🧹', action: 'Inspect the kitchen and service area cleanliness right away.' },
-  experience:  { label: 'Experience',  icon: '✨', action: 'Check service speed and staff friendliness with your team.' },
+  taste:       { label: 'Taste',        icon: '🍽️' },
+  temperature: { label: 'Temperature',  icon: '🌡️' },
+  quantity:    { label: 'Quantity',      icon: '⚖️'  },
+  hygiene:     { label: 'Hygiene',       icon: '🧹'  },
+  experience:  { label: 'Experience',   icon: '✨'  },
 };
+
+// Meal-type-aware action strings
+function getAction(metricKey, mealLabel) {
+  const m = mealLabel ? `during ${mealLabel}` : '';
+  const map = {
+    taste:       `Taste is low${m ? ' ' + m : ''}. Ask the kitchen to check today's seasoning and freshness.`,
+    temperature: `Food is arriving cold${m ? ' ' + m : ''}. Check holding temperatures and reduce time between plating and serving.`,
+    quantity:    `Portions feel small${m ? ' ' + m : ''}. Review serving sizes with kitchen staff before the next service.`,
+    hygiene:     `Hygiene is flagged${m ? ' ' + m : ''}. Inspect kitchen, utensils, and the service area right now.`,
+    experience:  `Overall experience is low${m ? ' ' + m : ''}. Check wait times and staff attitude with your team today.`,
+  };
+  return map[metricKey];
+}
 
 // ── helpers ───────────────────────────────────────────────────
 
 function avg(arr) {
-  if (!arr.length) return null;
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
+  const clean = arr.filter((v) => v != null);
+  if (!clean.length) return null;
+  return clean.reduce((a, b) => a + b, 0) / clean.length;
 }
 
 function lowestMetric(rows) {
-  let worst = null;
-  let worstAvg = Infinity;
-
+  let worst = null, worstAvg = Infinity;
   for (const m of METRICS) {
-    const vals = rows.map((r) => r[m]).filter((v) => v != null);
-    const a = avg(vals);
-    if (a !== null && a < worstAvg) {
-      worstAvg = a;
-      worst = m;
-    }
+    const a = avg(rows.map((r) => r[m]));
+    if (a !== null && a < worstAvg) { worstAvg = a; worst = m; }
   }
-
   return worst ? { key: worst, avg: worstAvg } : null;
 }
 
 function overallAvg(rows) {
-  const all = rows.flatMap((r) =>
-    METRICS.map((m) => r[m]).filter((v) => v != null)
-  );
-  return avg(all);
+  return avg(rows.flatMap((r) => METRICS.map((m) => r[m])));
+}
+
+// Which meal type scores worst on a given metric (min 2 responses)
+function worstMealType(rows, metricKey) {
+  const byMeal = {};
+  for (const r of rows) {
+    const mt = r.meal_type || 'unknown';
+    if (!byMeal[mt]) byMeal[mt] = [];
+    if (r[metricKey] != null) byMeal[mt].push(r[metricKey]);
+  }
+  let worst = null, worstA = Infinity;
+  for (const [meal, vals] of Object.entries(byMeal)) {
+    if (vals.length < 2) continue;
+    const a = avg(vals);
+    if (a < worstA) { worstA = a; worst = meal; }
+  }
+  return worst; // e.g. "lunch"
+}
+
+// Compare last-3 avg vs previous-3 avg  (rows ordered newest-first)
+function getTrend(rows, metricKey) {
+  const vals = rows.map((r) => r[metricKey]).filter((v) => v != null);
+  if (vals.length < 4) return 'stable';
+  const recent = avg(vals.slice(0, 3));
+  const older  = avg(vals.slice(3, 6));
+  if (older === null) return 'stable';
+  if (recent < older - 0.4) return 'dropping';
+  if (recent > older + 0.4) return 'improving';
+  return 'stable';
+}
+
+function timeAgo(dateStr) {
+  const secs = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (secs < 60)    return 'just now';
+  if (secs < 3600)  return `${Math.floor(secs / 60)} min ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)} hr ago`;
+  return 'earlier today';
+}
+
+// Return up to 3 trimmed comment snippets (non-empty)
+function getCommentSnippets(rows) {
+  return rows
+    .map((r) => r.comment?.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((c) => (c.length > 52 ? c.slice(0, 50) + '…' : c));
 }
 
 // ── data ──────────────────────────────────────────────────────
@@ -53,8 +105,9 @@ async function getTodayFeedback() {
 
   const { data, error } = await supabase
     .from('feedback')
-    .select('taste, temperature, quantity, hygiene, experience')
-    .gte('created_at', startOfDay.toISOString());
+    .select('taste, temperature, quantity, hygiene, experience, meal_type, comment, created_at')
+    .gte('created_at', startOfDay.toISOString())
+    .order('created_at', { ascending: false });
 
   if (error) throw error;
   return data ?? [];
@@ -65,29 +118,42 @@ async function getTodayFeedback() {
 export const revalidate = 60;
 
 export default async function OwnerPage() {
-  let rows = [];
-  let fetchError = null;
+  let rows = [], fetchError = null;
 
-  try {
-    rows = await getTodayFeedback();
-  } catch (err) {
-    fetchError = err.message ?? 'Unknown error';
-  }
+  try { rows = await getTodayFeedback(); }
+  catch (err) { fetchError = err.message ?? 'Unknown error'; }
 
   const total   = rows.length;
   const overall = overallAvg(rows);
   const worst   = total > 0 ? lowestMetric(rows) : null;
 
+  // Enriched context for the alert
+  let worstMeal = null, trend = 'stable', action = '', lastSeenLabel = '';
+
+  if (worst) {
+    worstMeal       = worstMealType(rows, worst.key);
+    trend           = getTrend(rows, worst.key);
+    action          = getAction(worst.key, worstMeal);
+    lastSeenLabel   = rows[0]?.created_at ? timeAgo(rows[0].created_at) : '';
+  }
+
+  const snippets    = getCommentSnippets(rows);
+
+  const alertLevel  =
+    !worst            ? 'none'
+    : worst.avg < 2.5 ? 'critical'
+    : worst.avg < 3.5 ? 'warning'
+    : 'good';
+
   const todayLabel = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long',
   });
 
-  // Determine alert level
-  const alertLevel =
-    !worst             ? 'none'
-    : worst.avg < 2.5  ? 'critical'
-    : worst.avg < 3.5  ? 'warning'
-    : 'good';
+  const TREND_BADGE = {
+    dropping:  { text: '↓ dropping recently', cls: 'badge badge--drop' },
+    improving: { text: '↑ improving',         cls: 'badge badge--up'   },
+    stable:    { text: '→ stable',             cls: 'badge badge--flat' },
+  };
 
   return (
     <div className="ow-shell">
@@ -100,12 +166,10 @@ export default async function OwnerPage() {
 
       {/* Error */}
       {fetchError && (
-        <div className="ow-card ow-error">
-          ⚠️ Could not load data: {fetchError}
-        </div>
+        <div className="ow-card ow-error">⚠️ Could not load data: {fetchError}</div>
       )}
 
-      {/* No data yet */}
+      {/* No data */}
       {!fetchError && total === 0 && (
         <div className="ow-card ow-empty">
           <p className="ow-empty-icon">☕</p>
@@ -114,25 +178,48 @@ export default async function OwnerPage() {
         </div>
       )}
 
-      {/* Main focus alert */}
+      {/* ── Main alert ── */}
       {worst && (
         <div className={`ow-card ow-alert ow-alert--${alertLevel}`}>
-          <p className="ow-alert-eyebrow">
-            {alertLevel === 'critical' ? '🚨 Needs Immediate Attention'
-            : alertLevel === 'warning'  ? '⚠️ Watch This Today'
-            : '✅ Looking Good'}
-          </p>
 
+          {/* Eyebrow row: label + timestamp */}
+          <div className="ow-alert-top">
+            <span className="ow-alert-eyebrow">
+              {alertLevel === 'critical' ? '🚨 Needs Immediate Attention'
+               : alertLevel === 'warning'  ? '⚠️ Watch This Today'
+               : '✅ Looking Good'}
+            </span>
+            {lastSeenLabel && (
+              <span className="ow-timestamp">Last feedback {lastSeenLabel}</span>
+            )}
+          </div>
+
+          {/* Metric + score */}
           <p className="ow-alert-metric">
             {META[worst.key].icon} {META[worst.key].label}
-            <span className="ow-alert-score">{worst.avg.toFixed(1)}<small>/5</small></span>
+            <span className="ow-alert-score">
+              {worst.avg.toFixed(1)}<small>/5</small>
+            </span>
           </p>
 
-          <p className="ow-alert-action">→ {META[worst.key].action}</p>
+          {/* Context row: meal type + trend */}
+          <div className="ow-context-row">
+            {worstMeal && (
+              <span className="badge badge--meal">
+                🍴 Mostly in {worstMeal}
+              </span>
+            )}
+            <span className={TREND_BADGE[trend].cls}>
+              {TREND_BADGE[trend].text}
+            </span>
+          </div>
+
+          {/* Specific action */}
+          <p className="ow-alert-action">→ {action}</p>
         </div>
       )}
 
-      {/* Summary strip */}
+      {/* ── Summary strip ── */}
       {total > 0 && (
         <div className="ow-card ow-summary">
           <div className="ow-stat">
@@ -142,11 +229,22 @@ export default async function OwnerPage() {
           <div className="ow-divider" />
           <div className="ow-stat">
             <span className="ow-stat-value">
-              {overall !== null ? overall.toFixed(1) : '—'}
-              <small>/5</small>
+              {overall !== null ? overall.toFixed(1) : '—'}<small>/5</small>
             </span>
             <span className="ow-stat-label">avg rating</span>
           </div>
+        </div>
+      )}
+
+      {/* ── What customers are saying ── */}
+      {snippets.length > 0 && (
+        <div className="ow-card ow-comments">
+          <p className="ow-comments-label">💬 What customers are saying</p>
+          <ul className="ow-comment-list">
+            {snippets.map((s, i) => (
+              <li key={i} className="ow-comment-item">"{s}"</li>
+            ))}
+          </ul>
         </div>
       )}
 
