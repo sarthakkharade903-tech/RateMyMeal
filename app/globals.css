@@ -562,3 +562,53 @@ body {
   font-size: 0.75rem;
   margin-top: 0.5rem;
 }
+
+/* ══════════════════════════════════════
+   CATEGORY GRID (feedback form)
+══════════════════════════════════════ */
+
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.cat-btn {
+  padding: 0.65rem 0.5rem;
+  border: 2px solid #e8e8e8;
+  border-radius: 12px;
+  background: #fafafa;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s ease;
+  min-height: 44px;
+  line-height: 1.3;
+}
+
+.cat-btn:active {
+  transform: scale(0.95);
+}
+
+.cat-btn--active {
+  border-color: #667eea;
+  background: #eef0fd;
+  color: #4338ca;
+  font-weight: 700;
+}
+
+/* Divider between category and questions */
+.fb-section-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 0.5rem 1.25rem 0;
+}
+
+/* ── Owner: worst question sublabel ── */
+.ow-alert-sublabel {
+  font-size: 0.82rem;
+  color: #666;
+  margin-bottom: 0.55rem;
+  padding-left: 0.1rem;
+}

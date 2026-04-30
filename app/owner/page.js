@@ -5,100 +5,104 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-const METRICS = ['taste', 'temperature', 'quantity', 'hygiene', 'experience'];
-
-const META = {
-  taste:       { label: 'Taste',       icon: '🍽️' },
-  temperature: { label: 'Temperature', icon: '🌡️' },
-  quantity:    { label: 'Quantity',     icon: '⚖️'  },
-  hygiene:     { label: 'Hygiene',      icon: '🧹'  },
-  experience:  { label: 'Experience',  icon: '✨'  },
+const CAT_LABELS = {
+  pizza: 'Pizza', sandwich: 'Sandwich', burger: 'Burger',
+  maggi: 'Maggi', pasta: 'Pasta', fries: 'Fries',
+  garlic_bread: 'Garlic Bread', shakes: 'Shakes',
+  cold_coffee: 'Cold Coffee', hot_beverages: 'Hot Beverages',
 };
 
-// More specific, practical action suggestions
-function getAction(metricKey, mealLabel) {
-  const meal = mealLabel ? ` during ${mealLabel}` : '';
-  const map = {
-    taste:       `Taste is low${meal}. Ask the kitchen to taste today's food — check seasoning, freshness, and cooking consistency right now.`,
-    temperature: `Food is arriving cold${meal}. Holding temperature should be above 65°C — check the time between plating and serving immediately.`,
-    quantity:    `Portions feel insufficient${meal}. Have a supervisor verify serving sizes against your standard before the next batch goes out.`,
-    hygiene:     `Hygiene concerns flagged${meal}. Walk through the kitchen now — check staff cleanliness, utensil condition, and surface hygiene.`,
-    experience:  `Overall experience is low${meal}. Check service speed with your team and find out if wait times have increased today.`,
-  };
-  return map[metricKey];
+// ── Action suggestion based on question label keywords ────────
+function getActionForLabel(label, category) {
+  const l = label.toLowerCase();
+  const cat = CAT_LABELS[category] || category;
+  if (l.includes('taste'))                         return `Taste of ${cat} is low. Ask kitchen to taste and adjust seasoning or recipe immediately.`;
+  if (l.includes('hot') && !l.includes('cold'))    return `${cat} is not hot enough. Check holding temperature — serve above 65°C and reduce plating delay.`;
+  if (l.includes('cold') && !l.includes('hot'))    return `${cat} is not cold enough. Verify refrigeration and ensure drinks are pre-chilled before serving.`;
+  if (l.includes('crispy'))                        return `${cat} is losing crispiness. Check oil temperature and serve immediately after cooking.`;
+  if (l.includes('quantity') || l.includes('filling') || l.includes('enough')) return `Portions of ${cat} feel insufficient. Have a supervisor verify serving sizes right now.`;
+  if (l.includes('fresh'))                         return `${cat} ingredients may not be fresh. Check and replace anything past its prime immediately.`;
+  if (l.includes('thick') || l.includes('cream'))  return `${cat} consistency is off. Adjust the mix ratio or ice cream quantity to fix it.`;
+  if (l.includes('consist'))                       return `${cat} preparation is inconsistent. Brief staff to use measured quantities for every order.`;
+  if (l.includes('topping'))                       return `Toppings on ${cat} are low-rated. Check quantity, freshness, and even distribution.`;
+  if (l.includes('patty'))                         return `Patty quality in ${cat} is poor. Check freshness and cooking time before the next batch.`;
+  if (l.includes('sauce'))                         return `Sauce quality in ${cat} is low. Verify freshness and preparation ratio with kitchen.`;
+  if (l.includes('garlic') || l.includes('cheese')) return `Garlic/cheese flavor is weak in ${cat}. Check butter quantity and ensure even spread before baking.`;
+  if (l.includes('assembled') || l.includes('proper')) return `${cat} assembly quality is low. Brief kitchen on proper build and presentation now.`;
+  return `Quality issue with ${cat}. Brief kitchen staff on standards before the next service.`;
 }
 
-// ── helpers ───────────────────────────────────────────────────
-
+// ── Helpers ───────────────────────────────────────────────────
 function avg(arr) {
   const clean = arr.filter((v) => v != null);
   if (!clean.length) return null;
   return clean.reduce((a, b) => a + b, 0) / clean.length;
 }
 
-function lowestMetric(rows) {
-  let worst = null, worstAvg = Infinity;
-  for (const m of METRICS) {
-    const a = avg(rows.map((r) => r[m]));
-    if (a !== null && a < worstAvg) { worstAvg = a; worst = m; }
-  }
-  return worst ? { key: worst, avg: worstAvg } : null;
-}
-
-function overallAvg(rows) {
-  return avg(rows.flatMap((r) => METRICS.map((m) => r[m])));
-}
-
-// Which meal type has the lowest avg for a given metric (min 2 responses)
-function worstMealType(rows, metricKey) {
-  const byMeal = {};
+// Find worst category by avg of q1+q2+q3 (min 2 entries)
+function findWorstCategory(rows) {
+  const byCat = {};
   for (const r of rows) {
-    const mt = r.meal_type || 'unknown';
-    if (!byMeal[mt]) byMeal[mt] = [];
-    if (r[metricKey] != null) byMeal[mt].push(r[metricKey]);
+    const cat = r.category || 'unknown';
+    if (!byCat[cat]) byCat[cat] = [];
+    [r.q1, r.q2, r.q3].filter((v) => v != null).forEach((v) => byCat[cat].push(v));
   }
-  let worst = null, worstA = Infinity;
-  for (const [meal, vals] of Object.entries(byMeal)) {
+  let worstCat = null, worstAvg = Infinity;
+  for (const [cat, vals] of Object.entries(byCat)) {
     if (vals.length < 2) continue;
     const a = avg(vals);
-    if (a < worstA) { worstA = a; worst = meal; }
+    if (a < worstAvg) { worstAvg = a; worstCat = cat; }
   }
-  return worst;
+  return worstCat ? { category: worstCat, avg: worstAvg } : null;
 }
 
-// Trend: compare last-3 avg vs previous-3 avg (rows ordered newest-first)
-function getTrend(rows, metricKey) {
-  const vals = rows.map((r) => r[metricKey]).filter((v) => v != null);
-  if (vals.length < 4) return null; // not enough data — show nothing
+// Within a category, find the worst specific question label
+function findWorstQuestion(rows, category) {
+  const catRows = rows.filter((r) => r.category === category);
+  const byLabel = {};
+  for (const r of catRows) {
+    for (const [q, label] of [[r.q1, r.q1_label], [r.q2, r.q2_label], [r.q3, r.q3_label]]) {
+      if (q != null && label) {
+        if (!byLabel[label]) byLabel[label] = [];
+        byLabel[label].push(q);
+      }
+    }
+  }
+  let worstLabel = null, worstAvg = Infinity;
+  for (const [label, vals] of Object.entries(byLabel)) {
+    const a = avg(vals);
+    if (a < worstAvg) { worstAvg = a; worstLabel = label; }
+  }
+  return worstLabel ? { label: worstLabel, avg: worstAvg } : null;
+}
+
+// Frequency: how many of last 6 in this category had avg q1+q2+q3 <= 3
+function getFrequency(rows, category) {
+  const catRows = rows.filter((r) => r.category === category).slice(0, 6);
+  if (catRows.length < 2) return null;
+  const low = catRows.filter((r) => {
+    const a = avg([r.q1, r.q2, r.q3]);
+    return a !== null && a <= 3;
+  }).length;
+  if (low === 0) return null;
+  return { low, total: catRows.length };
+}
+
+// Trend: last-3 avg vs prev-3 avg for a category
+function getTrend(rows, category) {
+  const vals = rows
+    .filter((r) => r.category === category)
+    .map((r) => avg([r.q1, r.q2, r.q3]))
+    .filter((v) => v != null);
+  if (vals.length < 4) return null;
   const recent = avg(vals.slice(0, 3));
   const older  = avg(vals.slice(3, 6));
   if (older === null) return null;
   if (recent < older - 0.4) return 'dropping';
   if (recent > older + 0.4) return 'improving';
-  return null; // was "stable" — now suppressed
+  return null;
 }
 
-// Frequency: how many of the last 6 rated this metric <= 3 (low)
-function getFrequency(rows, metricKey) {
-  const last6 = rows.slice(0, 6);
-  if (last6.length < 2) return null;
-  const low = last6.filter(
-    (r) => r[metricKey] != null && r[metricKey] <= 3
-  ).length;
-  if (low === 0) return null;
-  return { low, total: last6.length };
-}
-
-// Impact: is overall experience also suffering? (only when worst isn't experience)
-function getImpactHint(rows, worstKey) {
-  if (worstKey === 'experience') return null;
-  const expVals = rows.slice(0, 6).map((r) => r.experience).filter((v) => v != null);
-  if (!expVals.length) return null;
-  const expAvg = avg(expVals);
-  return expAvg < 3.5 ? 'overall experience affected' : null;
-}
-
-// Relative time
 function timeAgo(dateStr) {
   const secs = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
   if (secs < 60)    return 'just now';
@@ -107,79 +111,65 @@ function timeAgo(dateStr) {
   return 'earlier today';
 }
 
-// Negative-only comment snippets:
-// prioritise comments from entries where the worst metric scored ≤ 3
-function getNegativeSnippets(rows, metricKey) {
-  const POSITIVE_WORDS = [
-    'great', 'good', 'excellent', 'amazing', 'awesome', 'perfect',
-    'love', 'loved', 'wonderful', 'fantastic', 'best', 'delicious',
-    'nice', 'happy', 'satisfied', 'enjoy', 'enjoyed', 'fresh', 'clean',
-    'thank', 'thanks', 'well done', 'keep it up',
-  ];
+// Negative comments: from low-rated entries in the worst category
+function getNegativeSnippets(rows, category) {
+  const POSITIVE = ['great','good','excellent','amazing','awesome','perfect','love',
+    'loved','wonderful','fantastic','best','delicious','nice','happy','satisfied',
+    'enjoy','enjoyed','fresh','clean','thank','thanks'];
 
-  function isPositive(text) {
-    const lower = text.toLowerCase();
-    return POSITIVE_WORDS.some((w) => lower.includes(w));
-  }
+  const isPositive = (t) => POSITIVE.some((w) => t.toLowerCase().includes(w));
 
-  // First: comments from rows where that metric was low
-  const fromLow = rows
-    .filter((r) => r[metricKey] != null && r[metricKey] <= 3 && r.comment?.trim())
+  const catRows = rows.filter((r) => r.category === category);
+  const fromLow = catRows
+    .filter((r) => avg([r.q1, r.q2, r.q3]) <= 3 && r.comment?.trim())
     .map((r) => r.comment.trim())
     .filter((c) => !isPositive(c));
 
-  // Fallback: any comment that isn't purely positive
-  const fallback = rows
-    .map((r) => r.comment?.trim())
-    .filter(Boolean)
+  const fallback = catRows
+    .map((r) => r.comment?.trim()).filter(Boolean)
     .filter((c) => !isPositive(c));
 
-  const combined = [...new Set([...fromLow, ...fallback])].slice(0, 3);
-  return combined.map((c) => (c.length > 52 ? c.slice(0, 50) + '…' : c));
+  return [...new Set([...fromLow, ...fallback])]
+    .slice(0, 3)
+    .map((c) => (c.length > 52 ? c.slice(0, 50) + '…' : c));
 }
 
-// ── data ──────────────────────────────────────────────────────
-
+// ── Data fetch ────────────────────────────────────────────────
 async function getTodayFeedback() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
-
   const { data, error } = await supabase
     .from('feedback')
-    .select('taste, temperature, quantity, hygiene, experience, meal_type, comment, created_at')
+    .select('category, q1, q1_label, q2, q2_label, q3, q3_label, comment, created_at')
     .gte('created_at', startOfDay.toISOString())
+    .not('q1', 'is', null)
     .order('created_at', { ascending: false });
-
   if (error) throw error;
   return data ?? [];
 }
 
-// ── page ──────────────────────────────────────────────────────
-
 export const revalidate = 60;
 
+// ── Page ──────────────────────────────────────────────────────
 export default async function OwnerPage() {
   let rows = [], fetchError = null;
-
   try { rows = await getTodayFeedback(); }
   catch (err) { fetchError = err.message ?? 'Unknown error'; }
 
   const total   = rows.length;
-  const overall = overallAvg(rows);
-  const worst   = total > 0 ? lowestMetric(rows) : null;
+  const overall = avg(rows.flatMap((r) => [r.q1, r.q2, r.q3]));
+  const worst   = total > 0 ? findWorstCategory(rows) : null;
 
-  let worstMeal = null, trend = null, action = '';
-  let freq = null, impactHint = null, lastSeenLabel = '';
-  let snippets = [];
+  let worstQ = null, trend = null, freq = null;
+  let action = '', lastSeenLabel = '', snippets = [];
 
   if (worst) {
-    worstMeal     = worstMealType(rows, worst.key);
-    trend         = getTrend(rows, worst.key);
-    action        = getAction(worst.key, worstMeal);
-    freq          = getFrequency(rows, worst.key);
-    impactHint    = getImpactHint(rows, worst.key);
-    lastSeenLabel = rows[0]?.created_at ? timeAgo(rows[0].created_at) : '';
-    snippets      = getNegativeSnippets(rows, worst.key);
+    worstQ         = findWorstQuestion(rows, worst.category);
+    trend          = getTrend(rows, worst.category);
+    freq           = getFrequency(rows, worst.category);
+    action         = worstQ ? getActionForLabel(worstQ.label, worst.category) : '';
+    lastSeenLabel  = rows[0]?.created_at ? timeAgo(rows[0].created_at) : '';
+    snippets       = getNegativeSnippets(rows, worst.category);
   }
 
   const alertLevel =
@@ -194,19 +184,15 @@ export default async function OwnerPage() {
 
   return (
     <div className="ow-shell">
-
-      {/* Top bar */}
       <header className="ow-header">
         <span className="ow-brand">RateMyMeal</span>
         <span className="ow-date">{todayLabel}</span>
       </header>
 
-      {/* Error */}
       {fetchError && (
         <div className="ow-card ow-error">⚠️ Could not load data: {fetchError}</div>
       )}
 
-      {/* No data */}
       {!fetchError && total === 0 && (
         <div className="ow-card ow-empty">
           <p className="ow-empty-icon">☕</p>
@@ -215,15 +201,13 @@ export default async function OwnerPage() {
         </div>
       )}
 
-      {/* ── Main alert ── */}
+      {/* Main alert */}
       {worst && (
         <div className={`ow-card ow-alert ow-alert--${alertLevel}`}>
-
-          {/* Eyebrow + timestamp */}
           <div className="ow-alert-top">
             <span className="ow-alert-eyebrow">
               {alertLevel === 'critical' ? '🚨 Needs Immediate Attention'
-               : alertLevel === 'warning'  ? '⚠️ Watch This Now'
+               : alertLevel === 'warning' ? '⚠️ Watch This Now'
                : '✅ Looking Good'}
             </span>
             {lastSeenLabel && (
@@ -231,41 +215,32 @@ export default async function OwnerPage() {
             )}
           </div>
 
-          {/* Metric + score */}
           <p className="ow-alert-metric">
-            {META[worst.key].icon} {META[worst.key].label}
+            {CAT_LABELS[worst.category] || worst.category}
             <span className="ow-alert-score">
               {worst.avg.toFixed(1)}<small>/5</small>
             </span>
           </p>
 
-          {/* Context badges */}
+          {worstQ && (
+            <p className="ow-alert-sublabel">Lowest: {worstQ.label} ({worstQ.avg.toFixed(1)}/5)</p>
+          )}
+
           <div className="ow-context-row">
-            {worstMeal && (
-              <span className="badge badge--meal">🍴 Mostly in {worstMeal}</span>
-            )}
-            {trend === 'dropping' && (
-              <span className="badge badge--drop">↓ dropping recently</span>
-            )}
-            {trend === 'improving' && (
-              <span className="badge badge--up">↑ improving</span>
-            )}
+            {trend === 'dropping'  && <span className="badge badge--drop">↓ dropping recently</span>}
+            {trend === 'improving' && <span className="badge badge--up">↑ improving</span>}
             {freq && (
               <span className="badge badge--freq">
                 {freq.low} of last {freq.total} customers rated this low
               </span>
             )}
-            {impactHint && (
-              <span className="badge badge--impact">⚠ {impactHint}</span>
-            )}
           </div>
 
-          {/* Specific action */}
           <p className="ow-alert-action">→ {action}</p>
         </div>
       )}
 
-      {/* ── Summary strip ── */}
+      {/* Summary strip */}
       {total > 0 && (
         <div className="ow-card ow-summary">
           <div className="ow-stat">
@@ -282,7 +257,7 @@ export default async function OwnerPage() {
         </div>
       )}
 
-      {/* ── What customers are saying (negative only) ── */}
+      {/* Customer comments */}
       {snippets.length > 0 && (
         <div className="ow-card ow-comments">
           <p className="ow-comments-label">💬 What customers are saying</p>
