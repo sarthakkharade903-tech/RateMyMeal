@@ -12,24 +12,25 @@ const CAT_LABELS = {
   cold_coffee: 'Cold Coffee', hot_beverages: 'Hot Beverages',
 };
 
-// ── Action suggestion based on question label keywords ────────
+// ── Action suggestions ────────────────────────────────────────
 function getActionForLabel(label, category) {
-  const l = label.toLowerCase();
+  const l   = label.toLowerCase();
   const cat = CAT_LABELS[category] || category;
-  if (l.includes('taste'))                         return `Taste of ${cat} is low. Ask kitchen to taste and adjust seasoning or recipe immediately.`;
-  if (l.includes('hot') && !l.includes('cold'))    return `${cat} is not hot enough. Check holding temperature — serve above 65°C and reduce plating delay.`;
-  if (l.includes('cold') && !l.includes('hot'))    return `${cat} is not cold enough. Verify refrigeration and ensure drinks are pre-chilled before serving.`;
-  if (l.includes('crispy'))                        return `${cat} is losing crispiness. Check oil temperature and serve immediately after cooking.`;
-  if (l.includes('quantity') || l.includes('filling') || l.includes('enough')) return `Portions of ${cat} feel insufficient. Have a supervisor verify serving sizes right now.`;
-  if (l.includes('fresh'))                         return `${cat} ingredients may not be fresh. Check and replace anything past its prime immediately.`;
-  if (l.includes('thick') || l.includes('cream'))  return `${cat} consistency is off. Adjust the mix ratio or ice cream quantity to fix it.`;
-  if (l.includes('consist'))                       return `${cat} preparation is inconsistent. Brief staff to use measured quantities for every order.`;
-  if (l.includes('topping'))                       return `Toppings on ${cat} are low-rated. Check quantity, freshness, and even distribution.`;
-  if (l.includes('patty'))                         return `Patty quality in ${cat} is poor. Check freshness and cooking time before the next batch.`;
-  if (l.includes('sauce'))                         return `Sauce quality in ${cat} is low. Verify freshness and preparation ratio with kitchen.`;
-  if (l.includes('garlic') || l.includes('cheese')) return `Garlic/cheese flavor is weak in ${cat}. Check butter quantity and ensure even spread before baking.`;
-  if (l.includes('assembled') || l.includes('proper')) return `${cat} assembly quality is low. Brief kitchen on proper build and presentation now.`;
-  return `Quality issue with ${cat}. Brief kitchen staff on standards before the next service.`;
+  if (l.includes('taste'))                       return `Taste of ${cat} is low. Ask kitchen to taste and adjust seasoning right now.`;
+  if (l.includes('hot') && !l.includes('cold'))  return `${cat} is not hot enough. Serve above 65°C — check holding time and plating delay.`;
+  if (l.includes('cold') && !l.includes('hot'))  return `${cat} is not cold enough. Check refrigeration and pre-chill before serving.`;
+  if (l.includes('crispy'))                      return `${cat} losing crispiness. Check oil temp and serve immediately after cooking.`;
+  if (l.includes('quantity') || l.includes('filling') || l.includes('enough'))
+                                                 return `Portions of ${cat} feel small. Supervisor should verify serving sizes now.`;
+  if (l.includes('fresh'))                       return `${cat} ingredients may not be fresh. Check and replace before next batch.`;
+  if (l.includes('thick') || l.includes('cream')) return `${cat} consistency is off. Adjust mix ratio or ice cream quantity.`;
+  if (l.includes('consist'))                     return `${cat} prep is inconsistent. Use measured quantities for every order.`;
+  if (l.includes('topping'))                     return `Toppings on ${cat} are low-rated. Check quantity and freshness now.`;
+  if (l.includes('patty'))                       return `Patty in ${cat} is poor. Check freshness and cooking time before next order.`;
+  if (l.includes('sauce'))                       return `Sauce in ${cat} is off. Verify freshness and preparation ratio.`;
+  if (l.includes('garlic') || l.includes('cheese')) return `Garlic/cheese flavor is weak in ${cat}. Check butter quantity and even spread.`;
+  if (l.includes('assembled') || l.includes('proper')) return `${cat} assembly is poor. Brief kitchen on proper build and presentation.`;
+  return `Quality issue flagged for ${cat}. Brief kitchen staff on standards before next service.`;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -39,7 +40,16 @@ function avg(arr) {
   return clean.reduce((a, b) => a + b, 0) / clean.length;
 }
 
-// Find worst category by avg of q1+q2+q3 (min 2 entries)
+function rowAvg(r) { return avg([r.q1, r.q2, r.q3]); }
+
+// Priority label + class
+function getPriority(a) {
+  if (a < 2.5) return { label: '🔴 CRITICAL',         cls: 'priority--critical' };
+  if (a < 3.5) return { label: '🟠 NEEDS ATTENTION',  cls: 'priority--attention' };
+  return             { label: '🟢 LOOKING GOOD',       cls: 'priority--good' };
+}
+
+// Worst category by avg q1+q2+q3 (min 2 entries)
 function findWorstCategory(rows) {
   const byCat = {};
   for (const r of rows) {
@@ -47,16 +57,16 @@ function findWorstCategory(rows) {
     if (!byCat[cat]) byCat[cat] = [];
     [r.q1, r.q2, r.q3].filter((v) => v != null).forEach((v) => byCat[cat].push(v));
   }
-  let worstCat = null, worstAvg = Infinity;
+  let worstCat = null, worstA = Infinity;
   for (const [cat, vals] of Object.entries(byCat)) {
     if (vals.length < 2) continue;
     const a = avg(vals);
-    if (a < worstAvg) { worstAvg = a; worstCat = cat; }
+    if (a < worstA) { worstA = a; worstCat = cat; }
   }
-  return worstCat ? { category: worstCat, avg: worstAvg } : null;
+  return worstCat ? { category: worstCat, avg: worstA } : null;
 }
 
-// Within a category, find the worst specific question label
+// Worst question label in a category
 function findWorstQuestion(rows, category) {
   const catRows = rows.filter((r) => r.category === category);
   const byLabel = {};
@@ -68,41 +78,61 @@ function findWorstQuestion(rows, category) {
       }
     }
   }
-  let worstLabel = null, worstAvg = Infinity;
+  let worstLabel = null, worstA = Infinity;
   for (const [label, vals] of Object.entries(byLabel)) {
     const a = avg(vals);
-    if (a < worstAvg) { worstAvg = a; worstLabel = label; }
+    if (a < worstA) { worstA = a; worstLabel = label; }
   }
-  return worstLabel ? { label: worstLabel, avg: worstAvg } : null;
+  return worstLabel ? { label: worstLabel, avg: worstA } : null;
 }
 
-// Frequency: how many of last 6 in this category had avg q1+q2+q3 <= 3
-function getFrequency(rows, category) {
-  const catRows = rows.filter((r) => r.category === category).slice(0, 6);
+// Unhappy count: last 10 entries in category where any q ≤ 2
+function getUnhappyCount(rows, category) {
+  const catRows = rows.filter((r) => r.category === category).slice(0, 10);
   if (catRows.length < 2) return null;
-  const low = catRows.filter((r) => {
-    const a = avg([r.q1, r.q2, r.q3]);
-    return a !== null && a <= 3;
-  }).length;
-  if (low === 0) return null;
-  return { low, total: catRows.length };
+  const unhappy = catRows.filter((r) =>
+    [r.q1, r.q2, r.q3].filter((v) => v != null).some((v) => v <= 2)
+  ).length;
+  return unhappy > 0 ? { unhappy, total: catRows.length } : null;
 }
 
-// Trend: last-3 avg vs prev-3 avg for a category
+// Trend: last 5 vs previous 5 for a category
 function getTrend(rows, category) {
   const vals = rows
     .filter((r) => r.category === category)
-    .map((r) => avg([r.q1, r.q2, r.q3]))
+    .map((r) => rowAvg(r))
     .filter((v) => v != null);
-  if (vals.length < 4) return null;
-  const recent = avg(vals.slice(0, 3));
-  const older  = avg(vals.slice(3, 6));
+  if (vals.length < 6) return null;
+  const recent = avg(vals.slice(0, 5));
+  const older  = avg(vals.slice(5, 10));
   if (older === null) return null;
-  if (recent < older - 0.4) return 'dropping';
-  if (recent > older + 0.4) return 'improving';
-  return null;
+  if (recent < older - 0.3) return 'worse';
+  if (recent > older + 0.3) return 'improving';
+  return 'stable';
 }
 
+// Time of day where the issue is worst for a category
+function getProblemTimePeriod(rows, category) {
+  const catRows = rows.filter((r) => r.category === category);
+  const periods = { Morning: [], Afternoon: [], Evening: [] };
+  for (const r of catRows) {
+    const h = new Date(r.created_at).getHours();
+    const p = h >= 6 && h < 12 ? 'Morning' : h >= 12 && h < 18 ? 'Afternoon' : h >= 18 ? 'Evening' : null;
+    if (p) {
+      const a = rowAvg(r);
+      if (a != null) periods[p].push(a);
+    }
+  }
+  let worstPeriod = null, worstA = Infinity;
+  for (const [p, vals] of Object.entries(periods)) {
+    if (vals.length < 2) continue;
+    const a = avg(vals);
+    if (a < worstA) { worstA = a; worstPeriod = p; }
+  }
+  return worstPeriod;
+}
+
+// Relative time
 function timeAgo(dateStr) {
   const secs = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
   if (secs < 60)    return 'just now';
@@ -111,30 +141,19 @@ function timeAgo(dateStr) {
   return 'earlier today';
 }
 
-// Negative comments: from low-rated entries in the worst category
+// Negative comment snippets for a category
 function getNegativeSnippets(rows, category) {
-  const POSITIVE = ['great','good','excellent','amazing','awesome','perfect','love',
-    'loved','wonderful','fantastic','best','delicious','nice','happy','satisfied',
-    'enjoy','enjoyed','fresh','clean','thank','thanks'];
-
-  const isPositive = (t) => POSITIVE.some((w) => t.toLowerCase().includes(w));
-
+  const POSITIVE = ['great','good','excellent','amazing','awesome','perfect',
+    'love','loved','wonderful','fantastic','best','delicious','nice',
+    'happy','satisfied','enjoy','enjoyed','fresh','clean','thank','thanks'];
+  const isPos = (t) => POSITIVE.some((w) => t.toLowerCase().includes(w));
   const catRows = rows.filter((r) => r.category === category);
-  const fromLow = catRows
-    .filter((r) => avg([r.q1, r.q2, r.q3]) <= 3 && r.comment?.trim())
-    .map((r) => r.comment.trim())
-    .filter((c) => !isPositive(c));
-
-  const fallback = catRows
-    .map((r) => r.comment?.trim()).filter(Boolean)
-    .filter((c) => !isPositive(c));
-
-  return [...new Set([...fromLow, ...fallback])]
-    .slice(0, 3)
-    .map((c) => (c.length > 52 ? c.slice(0, 50) + '…' : c));
+  const fromLow = catRows.filter((r) => rowAvg(r) <= 3 && r.comment?.trim()).map((r) => r.comment.trim()).filter((c) => !isPos(c));
+  const fallback = catRows.map((r) => r.comment?.trim()).filter(Boolean).filter((c) => !isPos(c));
+  return [...new Set([...fromLow, ...fallback])].slice(0, 3).map((c) => c.length > 52 ? c.slice(0, 50) + '…' : c);
 }
 
-// ── Data fetch ────────────────────────────────────────────────
+// ── Data ──────────────────────────────────────────────────────
 async function getTodayFeedback() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
@@ -160,27 +179,27 @@ export default async function OwnerPage() {
   const overall = avg(rows.flatMap((r) => [r.q1, r.q2, r.q3]));
   const worst   = total > 0 ? findWorstCategory(rows) : null;
 
-  let worstQ = null, trend = null, freq = null;
-  let action = '', lastSeenLabel = '', snippets = [];
+  let worstQ = null, trend = null, unhappy = null;
+  let timePeriod = null, action = '', lastSeenLabel = '', snippets = [];
+  let priority = null;
 
   if (worst) {
-    worstQ         = findWorstQuestion(rows, worst.category);
-    trend          = getTrend(rows, worst.category);
-    freq           = getFrequency(rows, worst.category);
-    action         = worstQ ? getActionForLabel(worstQ.label, worst.category) : '';
-    lastSeenLabel  = rows[0]?.created_at ? timeAgo(rows[0].created_at) : '';
-    snippets       = getNegativeSnippets(rows, worst.category);
+    worstQ        = findWorstQuestion(rows, worst.category);
+    trend         = getTrend(rows, worst.category);
+    unhappy       = getUnhappyCount(rows, worst.category);
+    timePeriod    = getProblemTimePeriod(rows, worst.category);
+    action        = worstQ ? getActionForLabel(worstQ.label, worst.category) : '';
+    lastSeenLabel = rows[0]?.created_at ? timeAgo(rows[0].created_at) : '';
+    snippets      = getNegativeSnippets(rows, worst.category);
+    priority      = getPriority(worst.avg);
   }
-
-  const alertLevel =
-    !worst            ? 'none'
-    : worst.avg < 2.5 ? 'critical'
-    : worst.avg < 3.5 ? 'warning'
-    : 'good';
 
   const todayLabel = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long',
   });
+
+  const TREND_TEXT = { worse: '↓ getting worse', improving: '↑ improving', stable: '→ stable' };
+  const TREND_CLS  = { worse: 'badge badge--drop', improving: 'badge badge--up', stable: 'badge badge--flat' };
 
   return (
     <div className="ow-shell">
@@ -189,9 +208,7 @@ export default async function OwnerPage() {
         <span className="ow-date">{todayLabel}</span>
       </header>
 
-      {fetchError && (
-        <div className="ow-card ow-error">⚠️ Could not load data: {fetchError}</div>
-      )}
+      {fetchError && <div className="ow-card ow-error">⚠️ Could not load data: {fetchError}</div>}
 
       {!fetchError && total === 0 && (
         <div className="ow-card ow-empty">
@@ -201,25 +218,18 @@ export default async function OwnerPage() {
         </div>
       )}
 
-      {/* Main alert */}
-      {worst && (
-        <div className={`ow-card ow-alert ow-alert--${alertLevel}`}>
+      {/* ── Main alert ── */}
+      {worst && priority && (
+        <div className={`ow-card ow-alert ow-alert--${priority.cls.replace('priority--', '')}`}>
+
           <div className="ow-alert-top">
-            <span className="ow-alert-eyebrow">
-              {alertLevel === 'critical' ? '🚨 Needs Immediate Attention'
-               : alertLevel === 'warning' ? '⚠️ Watch This Now'
-               : '✅ Looking Good'}
-            </span>
-            {lastSeenLabel && (
-              <span className="ow-timestamp">Last feedback {lastSeenLabel}</span>
-            )}
+            <span className={`ow-priority-label ${priority.cls}`}>{priority.label}</span>
+            {lastSeenLabel && <span className="ow-timestamp">Last feedback {lastSeenLabel}</span>}
           </div>
 
           <p className="ow-alert-metric">
             {CAT_LABELS[worst.category] || worst.category}
-            <span className="ow-alert-score">
-              {worst.avg.toFixed(1)}<small>/5</small>
-            </span>
+            <span className="ow-alert-score">{worst.avg.toFixed(1)}<small>/5</small></span>
           </p>
 
           {worstQ && (
@@ -227,12 +237,14 @@ export default async function OwnerPage() {
           )}
 
           <div className="ow-context-row">
-            {trend === 'dropping'  && <span className="badge badge--drop">↓ dropping recently</span>}
-            {trend === 'improving' && <span className="badge badge--up">↑ improving</span>}
-            {freq && (
+            {unhappy && (
               <span className="badge badge--freq">
-                {freq.low} of last {freq.total} customers rated this low
+                ⚠️ {unhappy.unhappy} of last {unhappy.total} customers unhappy
               </span>
+            )}
+            {trend && <span className={TREND_CLS[trend]}>{TREND_TEXT[trend]}</span>}
+            {timePeriod && (
+              <span className="badge badge--time">🕒 Mostly in {timePeriod}</span>
             )}
           </div>
 
@@ -240,7 +252,7 @@ export default async function OwnerPage() {
         </div>
       )}
 
-      {/* Summary strip */}
+      {/* ── Summary strip ── */}
       {total > 0 && (
         <div className="ow-card ow-summary">
           <div className="ow-stat">
@@ -257,7 +269,7 @@ export default async function OwnerPage() {
         </div>
       )}
 
-      {/* Customer comments */}
+      {/* ── Customer comments ── */}
       {snippets.length > 0 && (
         <div className="ow-card ow-comments">
           <p className="ow-comments-label">💬 What customers are saying</p>

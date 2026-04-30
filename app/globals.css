@@ -612,3 +612,73 @@ body {
   margin-bottom: 0.55rem;
   padding-left: 0.1rem;
 }
+
+/* ══════════════════════════════════════
+   MULTI-SELECT ADDITIONS
+══════════════════════════════════════ */
+
+/* Checkmark inside selected category button */
+.cat-check {
+  color: #4338ca;
+  font-weight: 900;
+}
+
+/* "X selected" pill next to label */
+.fb-badge-count {
+  display: inline-block;
+  background: #667eea;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  vertical-align: middle;
+  margin-left: 0.3rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Per-category question block */
+.fb-cat-block {
+  margin-top: 0.5rem;
+}
+
+.fb-cat-heading {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #4338ca;
+  background: #eef0fd;
+  padding: 0.45rem 1.25rem;
+  border-left: 3px solid #667eea;
+  margin-bottom: 0.15rem;
+}
+
+/* ══════════════════════════════════════
+   OWNER DASHBOARD — PRIORITY SYSTEM
+══════════════════════════════════════ */
+
+/* Alert card variants mapped to priority */
+.ow-alert--critical  { background: #fff5f5; border-color: #e74c3c; }
+.ow-alert--attention { background: #fffbf0; border-color: #f39c12; }
+.ow-alert--good      { background: #f0fdf4; border-color: #27ae60; }
+
+/* Priority label pill */
+.ow-priority-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+.priority--critical  { background: #fef2f2; color: #b91c1c; }
+.priority--attention { background: #fff7ed; color: #c2410c; }
+.priority--good      { background: #f0fdf4; color: #15803d; }
+
+/* Time-of-day badge */
+.badge--time { background: #eff6ff; color: #1d4ed8; }
+
+/* Stable trend badge */
+.badge--flat { background: #f5f5f5; color: #666; }
+

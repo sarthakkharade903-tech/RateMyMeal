@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 const CATEGORIES = [
@@ -96,35 +96,57 @@ function ThankYouScreen({ stats, onDone }) {
 }
 
 export default function FeedbackPage() {
-  const [category, setCategory]     = useState(null);
-  const [q1, setQ1]                 = useState(null);
-  const [q2, setQ2]                 = useState(null);
-  const [q3, setQ3]                 = useState(null);
-  const [comment, setComment]       = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [submitted, setSubmitted]   = useState(false);
-  const [todayStats, setTodayStats] = useState(null);
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [answers, setAnswers]                       = useState({});
+  const [comment, setComment]                       = useState('');
+  const [loading, setLoading]                       = useState(false);
+  const [submitted, setSubmitted]                   = useState(false);
+  const [todayStats, setTodayStats]                 = useState(null);
+  const questionsRef                                = useRef(null);
 
-  const questions = category ? CATEGORY_QUESTIONS[category] : [];
-  const ratings   = [q1, q2, q3];
-  const setters   = [setQ1, setQ2, setQ3];
-  const canSubmit = category && q1 !== null && q2 !== null && q3 !== null && !loading;
+  const allAnswered =
+    selectedCategories.length > 0 &&
+    selectedCategories.every(
+      (cat) => answers[cat]?.q1 != null && answers[cat]?.q2 != null && answers[cat]?.q3 != null
+    );
+  const canSubmit = allAnswered && !loading;
 
-  function handleCategorySelect(key) {
-    setCategory(key);
-    setQ1(null); setQ2(null); setQ3(null);
+  function handleCategoryToggle(key) {
+    const isSelected = selectedCategories.includes(key);
+    if (isSelected) {
+      setSelectedCategories((prev) => prev.filter((k) => k !== key));
+      setAnswers((prev) => { const n = { ...prev }; delete n[key]; return n; });
+    } else {
+      const wasEmpty = selectedCategories.length === 0;
+      setSelectedCategories((prev) => [...prev, key]);
+      setAnswers((prev) => ({ ...prev, [key]: { q1: null, q2: null, q3: null } }));
+      if (wasEmpty) {
+        setTimeout(() => questionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+      }
+    }
+  }
+
+  function setAnswer(cat, field, val) {
+    setAnswers((prev) => ({ ...prev, [cat]: { ...prev[cat], [field]: val } }));
   }
 
   async function handleSubmit() {
     if (!canSubmit) return;
     setLoading(true);
-    const { error } = await supabase.from('feedback').insert([{
-      cafe_id: null, category,
-      q1, q1_label: questions[0],
-      q2, q2_label: questions[1],
-      q3, q3_label: questions[2],
-      comment: comment || null,
-    }]);
+
+    const rows = selectedCategories.map((cat, idx) => {
+      const qs  = CATEGORY_QUESTIONS[cat];
+      const ans = answers[cat];
+      return {
+        cafe_id: null, category: cat,
+        q1: ans.q1, q1_label: qs[0],
+        q2: ans.q2, q2_label: qs[1],
+        q3: ans.q3, q3_label: qs[2],
+        comment: idx === 0 ? (comment || null) : null,
+      };
+    });
+
+    const { error } = await supabase.from('feedback').insert(rows);
     if (error) {
       setLoading(false);
       alert('Error submitting');
@@ -138,8 +160,7 @@ export default function FeedbackPage() {
   }
 
   function handleDone() {
-    setCategory(null);
-    setQ1(null); setQ2(null); setQ3(null);
+    setSelectedCategories([]); setAnswers({});
     setComment(''); setSubmitted(false); setTodayStats(null);
   }
 
@@ -151,53 +172,73 @@ export default function FeedbackPage() {
         <div className="fb-header">
           <span className="fb-logo">🍴</span>
           <h1>How was your order?</h1>
-          <p>Pick an item and rate it in seconds.</p>
+          <p>Select all items you had and rate them.</p>
         </div>
 
-        {/* Category grid */}
+        {/* Category multi-select */}
         <div className="fb-section">
-          <p className="fb-label">What did you have?</p>
+          <p className="fb-label">
+            What did you have?{' '}
+            {selectedCategories.length > 0 && (
+              <span className="fb-badge-count">{selectedCategories.length} selected</span>
+            )}
+          </p>
           <div className="cat-grid">
             {CATEGORIES.map(({ key, label }) => (
               <button
                 key={key}
                 id={`cat-${key}`}
                 type="button"
-                className={`cat-btn ${category === key ? 'cat-btn--active' : ''}`}
-                onClick={() => handleCategorySelect(key)}
+                className={`cat-btn ${selectedCategories.includes(key) ? 'cat-btn--active' : ''}`}
+                onClick={() => handleCategoryToggle(key)}
               >
+                {selectedCategories.includes(key) && <span className="cat-check">✓ </span>}
                 {label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Dynamic questions */}
-        {category && (
-          <>
+        {/* Per-category questions */}
+        {selectedCategories.length > 0 && (
+          <div ref={questionsRef}>
             <div className="fb-section-divider" />
-            {questions.map((qLabel, idx) => (
-              <div className="fb-section" key={idx}>
-                <p className="fb-label">{qLabel}</p>
-                <div className="emoji-row">
-                  {EMOJIS.map((emoji, ei) => {
-                    const val = ei + 1;
+            {selectedCategories.map((cat) => {
+              const qs  = CATEGORY_QUESTIONS[cat];
+              const ans = answers[cat] || {};
+              const catLabel = CATEGORIES.find((c) => c.key === cat)?.label;
+              return (
+                <div key={cat} className="fb-cat-block">
+                  <p className="fb-cat-heading">{catLabel}</p>
+                  {qs.map((qLabel, idx) => {
+                    const field   = `q${idx + 1}`;
+                    const current = ans[field];
                     return (
-                      <button
-                        key={val}
-                        id={`q${idx + 1}-${val}`}
-                        type="button"
-                        className={`emoji-btn ${ratings[idx] === val ? 'emoji-btn--active' : ''}`}
-                        onClick={() => setters[idx](val)}
-                        aria-label={`${qLabel} ${val} out of 5`}
-                      >
-                        {emoji}
-                      </button>
+                      <div className="fb-section" key={idx}>
+                        <p className="fb-label">{qLabel}</p>
+                        <div className="emoji-row">
+                          {EMOJIS.map((emoji, ei) => {
+                            const val = ei + 1;
+                            return (
+                              <button
+                                key={val}
+                                id={`${cat}-${field}-${val}`}
+                                type="button"
+                                className={`emoji-btn ${current === val ? 'emoji-btn--active' : ''}`}
+                                onClick={() => setAnswer(cat, field, val)}
+                                aria-label={`${qLabel} ${val} out of 5`}
+                              >
+                                {emoji}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             <div className="fb-section">
               <p className="fb-label">Any comments? <span className="fb-optional">(optional)</span></p>
@@ -210,7 +251,7 @@ export default function FeedbackPage() {
                 placeholder="Tell us more…"
               />
             </div>
-          </>
+          </div>
         )}
 
         <button
@@ -221,9 +262,9 @@ export default function FeedbackPage() {
           disabled={!canSubmit}
         >
           {loading ? 'Submitting…'
-            : !category ? 'Select an item above to start'
-            : canSubmit ? 'Submit Feedback 🚀'
-            : 'Rate all 3 questions to continue'}
+            : selectedCategories.length === 0 ? 'Select items above to start'
+            : canSubmit ? `Submit ${selectedCategories.length > 1 ? `${selectedCategories.length} ratings` : 'Feedback'} 🚀`
+            : 'Answer all questions to continue'}
         </button>
       </div>
     </div>
