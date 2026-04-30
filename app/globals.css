@@ -360,8 +360,8 @@ body {
 /* Shared card base */
 .ow-card {
   border-radius: 14px;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
+  padding: 1rem;
+  margin-bottom: 0.85rem;
 }
 
 /* ── Alert card ── */
@@ -680,10 +680,10 @@ body {
   position: relative;
 }
 
-/* Priority left-accent + background tint */
 .ow-cat-card--critical  {
-  border-left-color: #dc2626;
-  background: #fffafa;
+  border-left-color: #c91c1c;
+  border-left-width: 6px;
+  background: #fff8f8;
 }
 .ow-cat-card--attention {
   border-left-color: #ea580c;
@@ -692,7 +692,7 @@ body {
 .ow-cat-card--good {
   border-left-color: #d1d5db;
   background: #fff;
-  opacity: 0.88;
+  opacity: 0.82;
 }
 
 /* Urgency pulse — left-border breathing */
@@ -753,15 +753,27 @@ body {
   font-size: 0.78rem;
   color: #aaa;
   align-self: flex-end;
-  padding-bottom: 0.2rem;
+  padding-bottom: 0.25rem;
+  margin-left: auto;
 }
 
-/* ── Line 3: warning — raw, no box ── */
+.ow-severity-hint {
+  font-size: 0.78rem;
+  font-weight: 600;
+  align-self: flex-end;
+  padding-bottom: 0.25rem;
+}
+
+.ow-severity-hint--critical { color: #b91c1c; }
+.ow-severity-hint--low      { color: #c2410c; }
+.ow-severity-hint--good     { color: #15803d; }
+
 .ow-warning-line {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   color: #b91c1c;
   line-height: 1.4;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.55rem;
+  margin-top: 0.1rem;
 }
 
 .ow-warning-line strong {
@@ -817,13 +829,12 @@ body {
   line-height: 1.2;
 }
 
-/* ── Trend badges (inline in header) ── */
 .trend-badge {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  padding: 0.15rem 0.45rem;
-  border-radius: 6px;
-  letter-spacing: 0.03em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 5px;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
@@ -852,15 +863,6 @@ body {
   color: #555 !important;
 }
 
-/* ── Comment snippet ── */
-.ow-snippet {
-  font-size: 0.8rem;
-  color: #9ca3af;
-  font-style: italic;
-  line-height: 1.4;
-  margin-top: 0.4rem;
-  padding-top: 0.4rem;
-  border-top: 1px solid #f3f4f6;
-}
+
 
 

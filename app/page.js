@@ -98,7 +98,6 @@ function ThankYouScreen({ stats, onDone }) {
 export default function FeedbackPage() {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [answers, setAnswers]                       = useState({});
-  const [comment, setComment]                       = useState('');
   const [loading, setLoading]                       = useState(false);
   const [submitted, setSubmitted]                   = useState(false);
   const [todayStats, setTodayStats]                 = useState(null);
@@ -142,7 +141,6 @@ export default function FeedbackPage() {
         q1: ans.q1, q1_label: qs[0],
         q2: ans.q2, q2_label: qs[1],
         q3: ans.q3, q3_label: qs[2],
-        comment: idx === 0 ? (comment || null) : null,
       };
     });
 
@@ -161,7 +159,7 @@ export default function FeedbackPage() {
 
   function handleDone() {
     setSelectedCategories([]); setAnswers({});
-    setComment(''); setSubmitted(false); setTodayStats(null);
+    setSubmitted(false); setTodayStats(null);
   }
 
   if (submitted) return <ThankYouScreen stats={todayStats} onDone={handleDone} />;
@@ -240,17 +238,6 @@ export default function FeedbackPage() {
               );
             })}
 
-            <div className="fb-section">
-              <p className="fb-label">Any comments? <span className="fb-optional">(optional)</span></p>
-              <textarea
-                id="comment-input"
-                className="fb-textarea"
-                rows={3}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Tell us more…"
-              />
-            </div>
           </div>
         )}
 

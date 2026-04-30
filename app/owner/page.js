@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import LiveTime from './LiveTime';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -97,19 +98,10 @@ function getTrend(rows, cat, worstLabel) {
   return 'stable';
 }
 
-const PERIOD_LABELS = { Morning: 'Morning rush (8–12 AM)', Afternoon: 'Afternoon rush (12–6 PM)', Evening: 'Evening rush (6–9 PM)' };
-
-function peakIssuePeriod(rows, cat) {
+function lastIssueTime(rows, cat) {
   const catRows = rows.filter((r) => r.category === cat);
-  const periods = { Morning: [], Afternoon: [], Evening: [] };
-  for (const r of catRows) {
-    const h = new Date(r.created_at).getHours();
-    const p = h >= 6 && h < 12 ? 'Morning' : h >= 12 && h < 18 ? 'Afternoon' : h >= 18 && h < 23 ? 'Evening' : null;
-    if (p) { const a = rowAvg(r); if (a != null) periods[p].push(a); }
-  }
-  let worstP = null, worstA = Infinity;
-  for (const [p, vals] of Object.entries(periods)) { if (vals.length < 2) continue; const a = avg(vals); if (a < worstA) { worstA = a; worstP = p; } }
-  return worstP ? PERIOD_LABELS[worstP] : null;
+  if (!catRows.length) return null;
+  return catRows[0].created_at;
 }
 
 function isUrgent(trend, unhappy) {
@@ -119,22 +111,15 @@ function isUrgent(trend, unhappy) {
 }
 
 function timeAgo(dateStr) {
-  const secs = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (secs < 60) return 'just now';
-  if (secs < 3600) return `${Math.floor(secs / 60)} min ago`;
+  const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+  const secs = Math.floor((Date.now() - new Date(utcStr).getTime()) / 1000);
+  if (secs < 90)    return 'just now';
+  if (secs < 3600)  return `${Math.floor(secs / 60)} min ago`;
   if (secs < 86400) return `${Math.floor(secs / 3600)} hr ago`;
   return 'earlier today';
 }
 
-function getSnippet(rows, cat) {
-  const POSITIVE = ['great','good','excellent','amazing','awesome','perfect','love','loved','wonderful','fantastic','best','delicious','nice','happy','satisfied','enjoy','enjoyed','clean','thank','thanks'];
-  const isPos = (t) => POSITIVE.some((w) => t.toLowerCase().includes(w));
-  const catRows = rows.filter((r) => r.category === cat);
-  const fromLow = catRows.filter((r) => rowAvg(r) <= 3 && r.comment?.trim()).map((r) => r.comment.trim()).filter((c) => !isPos(c));
-  const fallback = catRows.map((r) => r.comment?.trim()).filter(Boolean).filter((c) => !isPos(c));
-  const picked = [...new Set([...fromLow, ...fallback])][0];
-  return picked ? (picked.length > 60 ? picked.slice(0, 58) + '…' : picked) : null;
-}
+
 
 function buildCards(rows) {
   const cats = [...new Set(rows.map((r) => r.category).filter(Boolean))];
@@ -145,13 +130,12 @@ function buildCards(rows) {
     const wq       = worstQuestion(rows, cat);
     const unhappy  = wq ? unhappyCount(rows, cat, wq.label) : null;
     const trend    = wq ? getTrend(rows, cat, wq.label) : null;
-    const period   = peakIssuePeriod(rows, cat);
+    const lastIssue = lastIssueTime(rows, cat);
     const bullets  = wq ? getActionBullets(wq.label, cat) : [];
     const urgent   = isUrgent(trend, unhappy);
-    const snippet  = getSnippet(rows, cat);
     const count    = rows.filter((r) => r.category === cat).length;
     const generic  = wq ? isGeneric(wq.label) : false;
-    return { cat, avg: a, priority, wq, unhappy, trend, period, bullets, urgent, snippet, count, generic };
+    return { cat, avg: a, priority, wq, unhappy, trend, lastIssue, bullets, urgent, count, generic };
   }).filter(Boolean).sort((a, b) => {
     const po = PRIORITY_ORDER[a.priority.level] - PRIORITY_ORDER[b.priority.level];
     return po !== 0 ? po : a.avg - b.avg;
@@ -163,7 +147,7 @@ async function getTodayFeedback() {
   startOfDay.setHours(0, 0, 0, 0);
   const { data, error } = await supabase
     .from('feedback')
-    .select('category,q1,q1_label,q2,q2_label,q3,q3_label,comment,created_at')
+    .select('category,q1,q1_label,q2,q2_label,q3,q3_label,created_at')
     .gte('created_at', startOfDay.toISOString())
     .not('q1', 'is', null)
     .order('created_at', { ascending: false });
@@ -171,24 +155,32 @@ async function getTodayFeedback() {
   return data ?? [];
 }
 
-export const revalidate = 60;
+export const dynamic   = 'force-dynamic';
+export const revalidate = 0;
+
 
 const TREND_CFG = {
-  worse:     { text: '↓ worse', cls: 'trend-badge trend-badge--down' },
-  improving: { text: '↑ better', cls: 'trend-badge trend-badge--up' },
-  stable:    { text: '→ stable', cls: 'trend-badge trend-badge--flat' },
+  worse:     { text: '↓ getting worse', cls: 'trend-badge trend-badge--down' },
+  improving: { text: '↑ improving',     cls: 'trend-badge trend-badge--up'   },
+  stable:    { text: '→ stable',         cls: 'trend-badge trend-badge--flat' },
 };
+
+function severityHint(a) {
+  if (a < 2.5) return 'critical';
+  if (a < 3.5) return 'low';
+  return 'good';
+}
 
 export default async function OwnerPage() {
   let rows = [], fetchError = null;
   try { rows = await getTodayFeedback(); }
   catch (err) { fetchError = err.message ?? 'Unknown error'; }
 
-  const total   = rows.length;
-  const overall = avg(rows.flatMap((r) => [r.q1, r.q2, r.q3]));
-  const cards   = total > 0 ? buildCards(rows) : [];
-  const lastSeen = rows[0]?.created_at ? timeAgo(rows[0].created_at) : null;
-  const todayLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+  const total        = rows.length;
+  const overall      = avg(rows.flatMap((r) => [r.q1, r.q2, r.q3]));
+  const cards        = total > 0 ? buildCards(rows) : [];
+  const lastSeenAt   = rows[0]?.created_at ?? null;
+  const todayLabel   = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
     <div className="ow-shell">
@@ -212,14 +204,13 @@ export default async function OwnerPage() {
           <div className="ow-stat"><span className="ow-stat-value">{total}</span><span className="ow-stat-label">responses</span></div>
           <div className="ow-divider" />
           <div className="ow-stat"><span className="ow-stat-value">{overall?.toFixed(1) ?? '—'}<small>/5</small></span><span className="ow-stat-label">avg rating</span></div>
-          {lastSeen && <><div className="ow-divider" /><div className="ow-stat"><span className="ow-stat-value ow-stat-value--sm">{lastSeen}</span><span className="ow-stat-label">last feedback</span></div></>}
+          {lastSeenAt && <><div className="ow-divider" /><div className="ow-stat"><LiveTime dateStr={lastSeenAt} className="ow-stat-value ow-stat-value--sm" /><span className="ow-stat-label">last feedback</span></div></>}
         </div>
       )}
 
-      {cards.map(({ cat, avg: catA, priority, wq, unhappy, trend, period, bullets, urgent, snippet, count, generic }) => (
-        <div key={cat} className={`ow-card ow-cat-card ow-cat-card--${priority.level} ${urgent ? 'ow-cat-card--urgent' : ''}`}>
+      {cards.map(({ cat, avg: catA, priority, wq, unhappy, trend, lastIssue, bullets, urgent, count, generic }) => (
+        <div key={cat} className={`ow-card ow-cat-card ow-cat-card--${priority.level} ${urgent && priority.level === 'critical' ? 'ow-cat-card--urgent' : ''}`}>
 
-          {/* Line 1: Name + priority + trend */}
           <div className="ow-cat-header">
             <span className="ow-cat-icon">{CAT_ICONS[cat] || '🍴'}</span>
             <span className="ow-cat-name">{CAT_LABELS[cat] || cat}</span>
@@ -227,25 +218,22 @@ export default async function OwnerPage() {
             {trend && <span className={TREND_CFG[trend].cls}>{TREND_CFG[trend].text}</span>}
           </div>
 
-          {/* Line 2: Large score + response count */}
           <div className="ow-score-row">
             <span className="ow-cat-score">{catA.toFixed(1)}<small>/5</small></span>
+            <span className={`ow-severity-hint ow-severity-hint--${severityHint(catA)}`}>({severityHint(catA)})</span>
             <span className="ow-cat-count">{count} {count === 1 ? 'response' : 'responses'}</span>
           </div>
 
-          {/* Line 3: Warning — raw, no box */}
           {unhappy && wq && (
             <p className={`ow-warning-line ${generic ? 'ow-warning-line--muted' : ''}`}>
               ⚠️ <strong>{unhappy.unhappy} of last {unhappy.total}</strong> customers unhappy with <strong>{wq.label}</strong>
             </p>
           )}
 
-          {/* Line 4: Peak time — plain */}
-          {period && (
-            <p className="ow-peak-line">🕒 Peak issue: {period}</p>
+          {lastIssue && (
+            <p className="ow-peak-line">🕒 Last issue: <LiveTime dateStr={lastIssue} /></p>
           )}
 
-          {/* Line 5: Action bullets — no container */}
           {bullets.length > 0 && (
             <>
               <p className="ow-fix-label">→ Fix now:</p>
@@ -253,11 +241,6 @@ export default async function OwnerPage() {
                 {bullets.map((b, i) => <li key={i}>{b}</li>)}
               </ul>
             </>
-          )}
-
-          {/* Snippet — subtle italic */}
-          {snippet && (
-            <p className="ow-snippet">💬 "{snippet}"</p>
           )}
         </div>
       ))}
