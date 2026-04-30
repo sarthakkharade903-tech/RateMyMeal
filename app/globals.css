@@ -750,91 +750,90 @@ body {
 }
 
 .ow-cat-count {
-  font-size: 0.78rem;
-  color: #aaa;
+  font-size: 0.75rem;
+  color: #bbb;
   align-self: flex-end;
   padding-bottom: 0.25rem;
   margin-left: auto;
 }
 
-.ow-severity-hint {
-  font-size: 0.78rem;
-  font-weight: 600;
-  align-self: flex-end;
-  padding-bottom: 0.25rem;
-}
-
-.ow-severity-hint--critical { color: #b91c1c; }
-.ow-severity-hint--low      { color: #c2410c; }
-.ow-severity-hint--good     { color: #15803d; }
-
 .ow-warning-line {
-  font-size: 1.05rem;
+  font-size: 1rem;
   color: #b91c1c;
+  font-weight: 600;
   line-height: 1.4;
-  margin-bottom: 0.55rem;
-  margin-top: 0.1rem;
+  margin-bottom: 0.3rem;
+  margin-top: 0.05rem;
 }
 
 .ow-warning-line strong {
   font-weight: 800;
 }
 
-.ow-warning-line--muted {
-  color: #92400e;
-  opacity: 0.9;
+.ow-worst-line {
+  font-size: 0.82rem;
+  color: #374151;
+  margin-bottom: 0.45rem;
+  line-height: 1.4;
 }
 
-/* ── Line 4: peak time — plain ── */
+.ow-worst-line strong {
+  font-weight: 700;
+  color: #111;
+}
+
+.ow-worst-score {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .ow-peak-line {
-  font-size: 0.8rem;
-  color: #6b7280;
-  margin-bottom: 0.55rem;
+  font-size: 0.78rem;
+  color: #9ca3af;
+  margin-bottom: 0.4rem;
 }
 
-/* ── Line 5: fix label + bullets — no container ── */
 .ow-fix-label {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #374151;
-  margin-bottom: 0.3rem;
-  margin-top: 0.1rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+  margin-top: 0.35rem;
 }
 
 .ow-fix-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 0.5rem;
+  gap: 0.2rem;
+  margin-bottom: 0.25rem;
 }
 
 .ow-fix-list li {
-  font-size: 0.875rem;
-  color: #1f2937;
-  line-height: 1.45;
-  padding-left: 0.9rem;
+  font-size: 0.82rem;
+  color: #374151;
+  line-height: 1.4;
+  padding-left: 0.85rem;
   position: relative;
 }
 
 .ow-fix-list li::before {
-  content: '·';
+  content: '•';
   position: absolute;
   left: 0;
   color: #9ca3af;
-  font-weight: 700;
-  font-size: 1.1rem;
-  line-height: 1.2;
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .trend-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 0.12rem 0.4rem;
-  border-radius: 5px;
-  letter-spacing: 0.02em;
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 

@@ -22,25 +22,47 @@ const CAT_ICONS = {
 const GENERIC_LABELS = ['taste', 'crispy', 'fresh'];
 const isGeneric = (label) => GENERIC_LABELS.includes(label.toLowerCase().trim());
 
-// ── 2–3 bullet action points ──────────────────────────────────
-function getActionBullets(label, category) {
-  const l   = label.toLowerCase();
-  const cat = CAT_LABELS[category] || category;
-  if (l.includes('taste'))                             return [`Taste the ${cat} yourself right now`, 'Check seasoning — adjust salt, spice, or sauce', 'Verify ingredient freshness with kitchen'];
-  if (l.includes('hot') && !l.includes('cold'))        return ['Check holding temp — must be above 65°C', 'Reduce time between cooking and plating to under 3 min', 'Warm serving containers before use'];
-  if (l.includes('cold') && !l.includes('hot'))        return ['Check fridge temp — must be below 4°C', 'Pre-chill glasses and containers before serving', 'Never leave drinks out before serving'];
-  if (l.includes('crispy'))                            return ['Check oil temp — 170–180°C for frying', 'Serve immediately, do not cover or stack', 'Replace oil if it looks dark or smells off'];
+function formatIssue(label) {
+  const map = {
+    'Taste':             'Taste is off',
+    'Hot enough':        'Not hot enough',
+    'Cold enough':       'Not cold enough',
+    'Crispy':            'Not crispy enough',
+    'Crispy / grilled':  'Not crispy enough',
+    'Fresh':             'Not fresh',
+    'Patty quality':     'Poor patty quality',
+    'Consistency':       'Consistency issue',
+    'Filling enough':    'Filling not enough',
+    'Quantity enough':   'Quantity not enough',
+    'Thick & creamy':    'Not thick enough',
+    'Toppings quality':  'Poor toppings quality',
+    'Sauce quality':     'Sauce issue',
+    'Garlic / cheese flavor': 'Weak garlic/cheese flavor',
+    'Well assembled':    'Poorly assembled',
+    'Properly cooked':   'Not cooked properly',
+    'Cooked properly':   'Not cooked properly',
+    'Properly made':     'Not made properly',
+  };
+  return map[label] || label;
+}
+
+function getActionBullets(label) {
+  const l = label.toLowerCase();
+  if (l.includes('taste'))                              return ['Taste it now — adjust seasoning', 'Check ingredient freshness'];
+  if (l.includes('hot') && !l.includes('cold'))         return ['Serve immediately after cooking', 'Don\'t hold longer than 3 min'];
+  if (l.includes('cold') && !l.includes('hot'))         return ['Pre-chill glasses before serving', 'Never leave drinks out before serving'];
+  if (l.includes('crispy'))                             return ['Serve immediately — don\'t stack or cover', 'Check oil temp is 170–180°C'];
   if (l.includes('quantity') || l.includes('filling') || l.includes('enough'))
-                                                       return [`Measure ${cat} portion against your standard`, 'Check if kitchen is using correct scoop/weight', 'Brief staff to add more if in doubt'];
-  if (l.includes('fresh'))                             return ['Inspect ingredient batch — check expiry and smell', 'Replace anything that looks or smells off', "Check today's delivery date"];
-  if (l.includes('thick') || l.includes('cream'))     return ['Check mix ratio — too much ice makes it watery', 'Add more ice cream or base mix', 'Blend longer for smooth consistency'];
-  if (l.includes('consist'))                           return ['Use standard recipe card for every order', 'Measure milk/syrup with a measuring cup', 'Brief staff: no freestyling quantities'];
-  if (l.includes('topping'))                           return ['Check topping quantity vs standard recipe', 'Distribute evenly — not bunched in one spot', 'Verify topping freshness, replace if stale'];
-  if (l.includes('patty'))                             return ['Check patty freshness — color, smell, texture', 'Cook to 75°C internal temp, no shortcuts', 'Cook fresh per order — no pre-cooking'];
-  if (l.includes('sauce'))                             return ['Taste the sauce — bland = fix ratio now', 'Check sauce batch freshness and expiry', 'Verify quantity matches standard recipe'];
-  if (l.includes('garlic') || l.includes('cheese'))   return ['Use measured garlic butter spread per piece', 'Distribute cheese evenly before baking', 'Add 1–2 more minutes in oven if pale'];
-  if (l.includes('assembled') || l.includes('proper')) return ['Follow assembly order on recipe card', 'Assemble fresh per order — not in advance', 'Check all components are present before serving'];
-  return [`Check ${cat} prep against recipe card`, 'Taste before serving, adjust if needed', 'Brief kitchen on quality standards now'];
+                                                        return ['Check portion against standard', 'Brief staff to add more if in doubt'];
+  if (l.includes('fresh'))                              return ['Check ingredient batch — smell and date', 'Replace anything that looks off'];
+  if (l.includes('thick') || l.includes('cream'))      return ['Add more base mix or ice cream', 'Blend longer for smooth texture'];
+  if (l.includes('consist'))                            return ['Use measuring cup — no freestyling', 'Follow recipe card every time'];
+  if (l.includes('topping'))                            return ['Distribute toppings evenly', 'Verify topping freshness'];
+  if (l.includes('patty'))                              return ['Cook fresh per order — no pre-cooking', 'Check patty color and smell'];
+  if (l.includes('sauce'))                              return ['Taste the sauce now — fix ratio', 'Check sauce batch freshness'];
+  if (l.includes('garlic') || l.includes('cheese'))    return ['Spread garlic butter evenly', 'Add 1–2 min more in oven if pale'];
+  if (l.includes('assembled') || l.includes('proper')) return ['Assemble fresh per order', 'Follow assembly order on card'];
+  return ['Check prep against recipe card', 'Taste before serving'];
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -131,11 +153,10 @@ function buildCards(rows) {
     const unhappy  = wq ? unhappyCount(rows, cat, wq.label) : null;
     const trend    = wq ? getTrend(rows, cat, wq.label) : null;
     const lastIssue = lastIssueTime(rows, cat);
-    const bullets  = wq ? getActionBullets(wq.label, cat) : [];
+    const bullets  = wq ? getActionBullets(wq.label) : [];
     const urgent   = isUrgent(trend, unhappy);
     const count    = rows.filter((r) => r.category === cat).length;
-    const generic  = wq ? isGeneric(wq.label) : false;
-    return { cat, avg: a, priority, wq, unhappy, trend, lastIssue, bullets, urgent, count, generic };
+    return { cat, avg: a, priority, wq, unhappy, trend, lastIssue, bullets, urgent, count };
   }).filter(Boolean).sort((a, b) => {
     const po = PRIORITY_ORDER[a.priority.level] - PRIORITY_ORDER[b.priority.level];
     return po !== 0 ? po : a.avg - b.avg;
@@ -160,16 +181,10 @@ export const revalidate = 0;
 
 
 const TREND_CFG = {
-  worse:     { text: '↓ getting worse', cls: 'trend-badge trend-badge--down' },
-  improving: { text: '↑ improving',     cls: 'trend-badge trend-badge--up'   },
-  stable:    { text: '→ stable',         cls: 'trend-badge trend-badge--flat' },
+  worse:     { text: '↓', cls: 'trend-badge trend-badge--down' },
+  improving: { text: '↑', cls: 'trend-badge trend-badge--up'   },
+  stable:    { text: '→', cls: 'trend-badge trend-badge--flat' },
 };
-
-function severityHint(a) {
-  if (a < 2.5) return 'critical';
-  if (a < 3.5) return 'low';
-  return 'good';
-}
 
 export default async function OwnerPage() {
   let rows = [], fetchError = null;
@@ -208,7 +223,7 @@ export default async function OwnerPage() {
         </div>
       )}
 
-      {cards.map(({ cat, avg: catA, priority, wq, unhappy, trend, lastIssue, bullets, urgent, count, generic }) => (
+      {cards.map(({ cat, avg: catA, priority, wq, unhappy, trend, lastIssue, bullets, urgent, count }) => (
         <div key={cat} className={`ow-card ow-cat-card ow-cat-card--${priority.level} ${urgent && priority.level === 'critical' ? 'ow-cat-card--urgent' : ''}`}>
 
           <div className="ow-cat-header">
@@ -220,18 +235,23 @@ export default async function OwnerPage() {
 
           <div className="ow-score-row">
             <span className="ow-cat-score">{catA.toFixed(1)}<small>/5</small></span>
-            <span className={`ow-severity-hint ow-severity-hint--${severityHint(catA)}`}>({severityHint(catA)})</span>
             <span className="ow-cat-count">{count} {count === 1 ? 'response' : 'responses'}</span>
           </div>
 
           {unhappy && wq && (
-            <p className={`ow-warning-line ${generic ? 'ow-warning-line--muted' : ''}`}>
-              ⚠️ <strong>{unhappy.unhappy} of last {unhappy.total}</strong> customers unhappy with <strong>{wq.label}</strong>
+            <p className="ow-warning-line">
+              ⚠️ <strong>{unhappy.unhappy} of last {unhappy.total}</strong> unhappy
             </p>
           )}
 
           {lastIssue && (
             <p className="ow-peak-line">🕒 Last issue: <LiveTime dateStr={lastIssue} /></p>
+          )}
+
+          {wq && (
+            <p className="ow-worst-line">
+              <strong>{formatIssue(wq.label)}</strong> <span className="ow-worst-score">({wq.avg.toFixed(1)})</span>{trend === 'worse' ? ' ↓' : trend === 'improving' ? ' ↑' : ''}
+            </p>
           )}
 
           {bullets.length > 0 && (
@@ -245,7 +265,7 @@ export default async function OwnerPage() {
         </div>
       ))}
 
-      <p className="ow-refresh">Sorted by priority · Refreshes every 60 s</p>
+      <p className="ow-refresh">Sorted by priority · Live data</p>
     </div>
   );
 }
