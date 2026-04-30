@@ -219,43 +219,43 @@ export default async function OwnerPage() {
       {cards.map(({ cat, avg: catA, priority, wq, unhappy, trend, period, bullets, urgent, snippet, count, generic }) => (
         <div key={cat} className={`ow-card ow-cat-card ow-cat-card--${priority.level} ${urgent ? 'ow-cat-card--urgent' : ''}`}>
 
-          {/* Header */}
+          {/* Line 1: Name + priority + trend */}
           <div className="ow-cat-header">
             <span className="ow-cat-icon">{CAT_ICONS[cat] || '🍴'}</span>
             <span className="ow-cat-name">{CAT_LABELS[cat] || cat}</span>
             <span className={`ow-priority-label ${priority.cls}`}>{priority.label}</span>
+            {trend && <span className={TREND_CFG[trend].cls}>{TREND_CFG[trend].text}</span>}
           </div>
 
-          {/* Score + trend — large and prominent */}
-          <div className="ow-score-trend-row">
+          {/* Line 2: Large score + response count */}
+          <div className="ow-score-row">
             <span className="ow-cat-score">{catA.toFixed(1)}<small>/5</small></span>
-            {trend && <span className={TREND_CFG[trend].cls}>{TREND_CFG[trend].text}</span>}
             <span className="ow-cat-count">{count} {count === 1 ? 'response' : 'responses'}</span>
           </div>
 
-          {/* Unhappy count — most prominent insight */}
+          {/* Line 3: Warning — raw, no box */}
           {unhappy && wq && (
-            <div className={`ow-unhappy-bar ${generic ? 'ow-unhappy-bar--muted' : ''}`}>
+            <p className={`ow-warning-line ${generic ? 'ow-warning-line--muted' : ''}`}>
               ⚠️ <strong>{unhappy.unhappy} of last {unhappy.total}</strong> customers unhappy with <strong>{wq.label}</strong>
-            </div>
+            </p>
           )}
 
-          {/* Time insight */}
+          {/* Line 4: Peak time — plain */}
           {period && (
-            <p className="ow-time-insight">🕒 Peak issue: {period}</p>
+            <p className="ow-peak-line">🕒 Peak issue: {period}</p>
           )}
 
-          {/* Action bullets */}
+          {/* Line 5: Action bullets — no container */}
           {bullets.length > 0 && (
-            <div className="ow-fix-block">
+            <>
               <p className="ow-fix-label">→ Fix now:</p>
               <ul className="ow-fix-list">
                 {bullets.map((b, i) => <li key={i}>{b}</li>)}
               </ul>
-            </div>
+            </>
           )}
 
-          {/* Comment snippet (especially useful for generic labels) */}
+          {/* Snippet — subtle italic */}
           {snippet && (
             <p className="ow-snippet">💬 "{snippet}"</p>
           )}
