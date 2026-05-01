@@ -59,37 +59,52 @@ function Stars({ value }) {
   );
 }
 
-function ThankYouScreen({ stats, onDone }) {
+function ThankYouScreen({ stats }) {
   return (
-    <div className="fb-shell">
-      <div className="fb-card ty-card">
-        <div className="ty-confetti">🎉</div>
-        <div className="ty-circle">✓</div>
-        <h1 className="ty-title">Thank you!</h1>
-        <p className="ty-sub">Your voice makes every meal better 🙏</p>
+    <div className="fb-shell ty-shell">
+      <div className="ty-card">
+
+        {/* Checkmark circle — pops in */}
+        <div className="ty-check-wrap">
+          <div className="ty-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8"
+                 strokeLinecap="round" strokeLinejoin="round" width="36" height="36">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Title — fades in */}
+        <h1 className="ty-title ty-fade ty-fade--1">
+          Thank you!
+        </h1>
+        <p className="ty-sub ty-fade ty-fade--2">
+          Your feedback helps improve every meal 🙌
+        </p>
+
+        {/* Stats block — fades in */}
         {stats ? (
-          <div className="ty-stats">
-            <div className="ty-stat-box">
-              <Stars value={stats.avg} />
-              <p className="ty-stat-label">Today's rating: <strong>{stats.avg} / 5</strong></p>
+          <div className="ty-stats ty-fade ty-fade--3">
+            <div className="ty-avg-row">
+              <span className="ty-avg-num">{stats.avg}</span>
+              <span className="ty-avg-denom">&thinsp;/ 5</span>
             </div>
+            <Stars value={stats.avg} />
+            <p className="ty-avg-label">Today's average rating</p>
+
             <div className="ty-divider" />
+
             <p className="ty-people">
               🙌 You're among <strong>{stats.count}</strong>{' '}
               {stats.count === 1 ? 'person' : 'people'} who rated today
             </p>
-            <p className="ty-msg">
-              {stats.avg >= 4
-                ? "Glad you're enjoying the food! Keep the feedback coming 🌟"
-                : 'Your feedback is helping the team improve — we appreciate it!'}
-            </p>
           </div>
         ) : (
-          <p className="ty-people">Your feedback has been recorded 📝</p>
+          <p className="ty-people ty-fade ty-fade--3">Your feedback has been recorded 📝</p>
         )}
-        <button id="done-btn" className="fb-submit fb-submit--done ty-done" onClick={onDone}>
-          Done 👍
-        </button>
+
+        {/* Close hint — fades in last */}
+        <p className="ty-close-hint ty-fade ty-fade--4">You can close this page</p>
       </div>
     </div>
   );
@@ -157,12 +172,7 @@ export default function FeedbackPage() {
     setSubmitted(true);
   }
 
-  function handleDone() {
-    setSelectedCategories([]); setAnswers({});
-    setSubmitted(false); setTodayStats(null);
-  }
-
-  if (submitted) return <ThankYouScreen stats={todayStats} onDone={handleDone} />;
+  if (submitted) return <ThankYouScreen stats={todayStats} />;
 
   return (
     <div className="fb-shell">
