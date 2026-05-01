@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import LiveTime from './LiveTime';
+import LiveTime    from './LiveTime';
+import CardDetails from './CardDetails';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -126,6 +127,23 @@ function lastIssueTime(rows, cat) {
   return catRows[0].created_at;
 }
 
+function getQuestionAverages(rows, cat) {
+  const catRows = rows.filter((r) => r.category === cat);
+  const byLabel = {};
+  for (const r of catRows)
+    for (const [q, label] of [[r.q1, r.q1_label], [r.q2, r.q2_label], [r.q3, r.q3_label]])
+      if (q != null && label) { if (!byLabel[label]) byLabel[label] = []; byLabel[label].push(q); }
+  return Object.entries(byLabel)
+    .map(([label, vals]) => ({ label, avg: avg(vals) }))
+    .sort((a, b) => a.avg - b.avg);
+}
+
+function getRecentEntryAvg(rows, cat) {
+  const latest = rows.find((r) => r.category === cat);
+  if (!latest) return null;
+  return avg([latest.q1, latest.q2, latest.q3]);
+}
+
 function isUrgent(trend, unhappy) {
   if (trend === 'worse') return true;
   if (unhappy && unhappy.unhappy / unhappy.total >= 0.5) return true;
@@ -153,10 +171,12 @@ function buildCards(rows) {
     const unhappy  = wq ? unhappyCount(rows, cat, wq.label) : null;
     const trend    = wq ? getTrend(rows, cat, wq.label) : null;
     const lastIssue = lastIssueTime(rows, cat);
-    const bullets  = wq ? getActionBullets(wq.label) : [];
-    const urgent   = isUrgent(trend, unhappy);
-    const count    = rows.filter((r) => r.category === cat).length;
-    return { cat, avg: a, priority, wq, unhappy, trend, lastIssue, bullets, urgent, count };
+    const questions      = getQuestionAverages(rows, cat);
+    const recentEntryAvg = getRecentEntryAvg(rows, cat);
+    const bullets        = wq ? getActionBullets(wq.label) : [];
+    const urgent         = isUrgent(trend, unhappy);
+    const count          = rows.filter((r) => r.category === cat).length;
+    return { cat, avg: a, priority, wq, unhappy, trend, lastIssue, questions, recentEntryAvg, bullets, urgent, count };
   }).filter(Boolean).sort((a, b) => {
     const po = PRIORITY_ORDER[a.priority.level] - PRIORITY_ORDER[b.priority.level];
     return po !== 0 ? po : a.avg - b.avg;
@@ -223,7 +243,7 @@ export default async function OwnerPage() {
         </div>
       )}
 
-      {cards.map(({ cat, avg: catA, priority, wq, unhappy, trend, lastIssue, bullets, urgent, count }) => (
+      {cards.map(({ cat, avg: catA, priority, wq, unhappy, trend, lastIssue, questions, recentEntryAvg, bullets, urgent, count }) => (
         <div key={cat} className={`ow-card ow-cat-card ow-cat-card--${priority.level} ${urgent && priority.level === 'critical' ? 'ow-cat-card--urgent' : ''}`}>
 
           <div className="ow-cat-header">
@@ -232,6 +252,12 @@ export default async function OwnerPage() {
             <span className={`ow-priority-label ${priority.cls}`}>{priority.label}</span>
             {trend && <span className={TREND_CFG[trend].cls}>{TREND_CFG[trend].text}</span>}
           </div>
+
+          {lastIssue && (
+            <p className="ow-card-time">
+              🕒 {priority.level === 'good' ? 'Updated' : 'Last issue'} <LiveTime dateStr={lastIssue} />
+            </p>
+          )}
 
           <div className="ow-score-row">
             <span className="ow-cat-score">{catA.toFixed(1)}<small>/5</small></span>
@@ -242,10 +268,6 @@ export default async function OwnerPage() {
             <p className="ow-warning-line">
               ⚠️ <strong>{unhappy.unhappy} of last {unhappy.total}</strong> unhappy
             </p>
-          )}
-
-          {lastIssue && (
-            <p className="ow-peak-line">🕒 Last issue: <LiveTime dateStr={lastIssue} /></p>
           )}
 
           {wq && (
@@ -262,6 +284,11 @@ export default async function OwnerPage() {
               </ul>
             </>
           )}
+
+          <CardDetails
+            questions={questions}
+            recentAvg={recentEntryAvg}
+          />
         </div>
       ))}
 

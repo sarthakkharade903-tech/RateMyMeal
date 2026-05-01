@@ -787,11 +787,16 @@ body {
   font-weight: 600;
 }
 
-.ow-peak-line {
-  font-size: 0.78rem;
+/* ── Top-right time line ── */
+.ow-card-time {
+  font-size: 0.72rem;
   color: #9ca3af;
+  text-align: right;
+  margin-top: -0.25rem;
   margin-bottom: 0.4rem;
+  line-height: 1;
 }
+
 
 .ow-fix-label {
   font-size: 0.72rem;
@@ -861,6 +866,87 @@ body {
   font-size: 1.1rem !important;
   color: #555 !important;
 }
+
+/* ══════════════════════════════════════
+   CARD DETAILS — expandable section
+══════════════════════════════════════ */
+
+.ow-details {
+  margin-top: 0.55rem;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 0.4rem;
+}
+
+.ow-details-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #9ca3af;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color 0.12s ease;
+}
+
+.ow-details-toggle:hover {
+  color: #6b7280;
+}
+
+.ow-details-body {
+  margin-top: 0.5rem;
+}
+
+.ow-details-divider {
+  font-size: 0.7rem;
+  color: #d1d5db;
+  text-align: center;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.45rem;
+}
+
+.ow-details-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.ow-details-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.ow-details-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.ow-details-score {
+  font-size: 0.8rem;
+  color: #374151;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ow-details-score--worst {
+  color: #b91c1c;
+}
+
+.ow-details-recent {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-top: 0.15rem;
+}
+
+.ow-details-stars {
+  color: #f59e0b;
+  letter-spacing: 1px;
+  font-size: 0.8rem;
+}
+
 
 
 
