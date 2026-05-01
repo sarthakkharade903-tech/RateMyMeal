@@ -288,6 +288,7 @@ export default async function OwnerPage() {
           <CardDetails
             questions={questions}
             recentAvg={recentEntryAvg}
+            cardAvg={catA}
           />
         </div>
       ))}

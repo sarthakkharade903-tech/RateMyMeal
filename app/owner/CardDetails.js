@@ -8,10 +8,18 @@ function stars(avg) {
   return '★'.repeat(Math.max(0, full)) + '☆'.repeat(Math.max(0, empty));
 }
 
-export default function CardDetails({ questions, recentAvg }) {
+export default function CardDetails({ questions, recentAvg, cardAvg }) {
   const [open, setOpen] = useState(false);
 
   if (!questions?.length) return null;
+
+  const recentCls = (() => {
+    if (recentAvg == null || cardAvg == null) return '';
+    const diff = recentAvg - cardAvg;
+    if (diff > 0.1)  return 'ow-recent--better';
+    if (diff < -0.1) return 'ow-recent--worse';
+    return '';
+  })();
 
   return (
     <div className="ow-details">
@@ -39,7 +47,7 @@ export default function CardDetails({ questions, recentAvg }) {
           </div>
 
           {recentAvg != null && (
-            <p className="ow-details-recent">
+            <p className={`ow-details-recent ${recentCls}`}>
               👉 Recent: <span className="ow-details-stars">{stars(recentAvg)}</span> ({recentAvg.toFixed(1)})
             </p>
           )}

@@ -939,7 +939,21 @@ body {
   font-size: 0.78rem;
   color: #6b7280;
   margin-top: 0.15rem;
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
 }
+
+.ow-recent--better {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.ow-recent--worse {
+  background: #fefce8;
+  color: #92400e;
+}
+
 
 .ow-details-stars {
   color: #f59e0b;
