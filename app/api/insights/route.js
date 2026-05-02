@@ -3,36 +3,35 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req) {
   const body = await req.json();
-  const { tab, overallAvg, totalResponses, problemItems, ruleInsights } = body;
+  const { tab, overallAvg, totalResponses, ruleInsights } = body;
 
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return NextResponse.json({ insights: ruleInsights });
 
-  const period   = tab === 'week' ? '7 days' : '30 days';
-  const probStr  = (problemItems || [])
-    .map(p => `${p.category} (${p.avg}/5, ${p.trend}, issue: "${p.issue}")`)
-    .join('; ') || 'none';
+  const period = tab === 'week' ? '7-day' : '30-day';
 
-  const prompt = `You are a café quality analyst. Write 3-4 short insights for a café owner.
-Period: Last ${period}
-Overall rating: ${overallAvg}/5 (${totalResponses} responses)
-Problem items: ${probStr}
-Observations: ${(ruleInsights || []).join('; ')}
+  const prompt = `You are writing insights for a busy café owner checking their ${period} feedback report.
+
+Rewrite the following observations into 3 short, clear, human-readable insights.
+Overall: ${overallAvg}/5 across ${totalResponses} responses.
+
+Observations:
+${(ruleInsights || []).map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
 Rules:
-- Each insight = 1 sentence, max 14 words
-- Mention specific food item names
-- Be direct and actionable
+- Keep each insight to 1 sentence, max 15 words
+- Always include the specific food item name if mentioned
+- Sound like a real person, not a report
 - Output ONLY a numbered list: 1. 2. 3.
-- No intro, no explanation`;
+- No intro, no closing line, no explanation`;
 
   try {
     const groq = new Groq({ apiKey });
     const completion = await groq.chat.completions.create({
       model: 'llama3-8b-8192',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 220,
-      temperature: 0.2,
+      max_tokens: 200,
+      temperature: 0.25,
     });
 
     const text  = completion.choices[0]?.message?.content ?? '';
