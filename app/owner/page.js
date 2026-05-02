@@ -230,6 +230,7 @@ export default function OwnerPage() {
     supabase
       .from('feedback')
       .select('category,q1,q1_label,q2,q2_label,q3,q3_label,created_at')
+      .eq('cafe_id', process.env.NEXT_PUBLIC_CAFE_ID)
       .gte('created_at', since)
       .not('q1', 'is', null)
       .order('created_at', { ascending: false })

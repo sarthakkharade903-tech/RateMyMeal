@@ -37,6 +37,7 @@ async function fetchTodayStats() {
   const { data, error } = await supabase
     .from('feedback')
     .select('q1, q2, q3')
+    .eq('cafe_id', process.env.NEXT_PUBLIC_CAFE_ID)
     .gte('created_at', startOfDay.toISOString())
     .not('q1', 'is', null);
   if (error || !data?.length) return null;
@@ -180,7 +181,7 @@ export default function FeedbackPage() {
       const qs  = CATEGORY_QUESTIONS[cat];
       const ans = answersRef.current[cat];
       return {
-        cafe_id: null, category: cat,
+        cafe_id: process.env.NEXT_PUBLIC_CAFE_ID, category: cat,
         q1: ans.q1, q1_label: qs[0],
         q2: ans.q2, q2_label: qs[1],
         q3: ans.q3, q3_label: qs[2],

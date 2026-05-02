@@ -211,7 +211,7 @@ export default function TrendView({ rows, tab }) {
     const days=tab==='week'?7:30;
     const ps=new Date(Date.now()-2*days*86400000).toISOString();
     const pe=new Date(Date.now()-days*86400000).toISOString();
-    supabase.from('feedback').select('q1,q2,q3').gte('created_at',ps).lt('created_at',pe).not('q1','is',null)
+    supabase.from('feedback').select('q1,q2,q3').eq('cafe_id', process.env.NEXT_PUBLIC_CAFE_ID).gte('created_at',ps).lt('created_at',pe).not('q1','is',null)
       .then(({data})=>{ if(data?.length){const v=data.flatMap(r=>[r.q1,r.q2,r.q3]).filter(v=>v!=null);setPrevAvg(avg(v));} });
   },[tab]);
 
