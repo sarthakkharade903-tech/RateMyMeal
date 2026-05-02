@@ -404,6 +404,72 @@ body {
   color: #888;
 }
 
+/* ── Tab bar ── */
+.ow-tabs {
+  display: flex;
+  gap: 0.4rem;
+  background: #f0f0f5;
+  border-radius: 12px;
+  padding: 0.3rem;
+  margin-bottom: 1rem;
+}
+
+.ow-tab-btn {
+  flex: 1;
+  padding: 0.5rem 0.5rem;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.ow-tab-btn--active {
+  background: #fff;
+  color: #4338ca;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+}
+
+/* ── Content fade transition ── */
+.ow-tab-content {
+  transition: opacity 180ms ease;
+}
+
+.ow-tab-content--out { opacity: 0; }
+.ow-tab-content--in  { opacity: 1; }
+
+/* ── Loading skeleton dots ── */
+.ow-loading-card {
+  background: #fff;
+  border: 1.5px solid #e8e8e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  min-height: 80px;
+}
+
+.ow-loading-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c4b5fd;
+  animation: dotPulse 1.2s ease-in-out infinite;
+}
+.ow-loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.ow-loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dotPulse {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1;   }
+}
+
 /* Shared card base */
 .ow-card {
   border-radius: 14px;
@@ -1008,7 +1074,442 @@ body {
   font-size: 0.8rem;
 }
 
+/* ── Sort bar (Today tab only) ── */
+.ow-sort-bar {
+  margin-bottom: 0.75rem;
+}
 
+/* ── Collapsed: trigger pill ── */
+.ow-sort-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.32rem 0.7rem;
+  border: 1.5px solid #e4e4f0;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.78rem;
+  color: #666;
+  cursor: pointer;
+  transition: border-color 0.1s ease, background 0.1s ease;
+  white-space: nowrap;
+}
 
+.ow-sort-trigger:active {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+}
 
+.ow-sort-trigger strong {
+  color: #4338ca;
+  font-weight: 700;
+}
 
+.ow-sort-icon {
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.ow-sort-arrow {
+  font-size: 0.55rem;
+  color: #bbb;
+  margin-left: 0.05rem;
+}
+
+/* ── Expanded: options panel ── */
+.ow-sort-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  row-gap: 0.3rem;          /* tight vertical gap when wrapping */
+  animation: sortPop 0.13s ease-out;
+}
+
+@keyframes sortPop {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Option pills ── */
+.ow-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #ebebf5;
+  border-radius: 999px;
+  background: #f7f7fb;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #888;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+  position: relative;
+}
+
+.ow-sort-btn:active {
+  transform: scale(0.95);
+}
+
+/* Selected option — filled indigo */
+.ow-sort-btn--active {
+  background: #4338ca;
+  border-color: #4338ca;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Small icon inside each option */
+.ow-sort-opt-icon {
+  font-size: 0.7rem;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+.ow-sort-btn--active .ow-sort-opt-icon {
+  opacity: 1;
+}
+
+/* Least Feedback gets a muted icon to distinguish from Most */
+.ow-sort-btn--muted-icon .ow-sort-opt-icon {
+  opacity: 0.35;
+}
+
+/* "default" microcopy — inline, very subtle */
+.ow-sort-default {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: #c8c8d8;
+  margin-left: 0.15rem;
+  opacity: 0.9;
+  letter-spacing: 0.01em;
+}
+
+.ow-sort-btn--active .ow-sort-default {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ══════════════════════════════════════
+   STEP-BASED FEEDBACK FLOW
+══════════════════════════════════════ */
+
+.fb-view-idle {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fb-view-out {
+  opacity: 0;
+  transform: translateY(0);
+  transition: opacity 140ms ease;
+}
+
+.fb-view-in {
+  animation: viewFadeIn 200ms ease-out forwards;
+}
+
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fb-step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 0.5rem;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.fb-back-btn {
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #667eea;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  margin-left: -0.6rem;
+  border-radius: 6px;
+  transition: background 0.1s ease;
+}
+
+.fb-back-btn:active {
+  background: #eef0fd;
+}
+
+.fb-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.fb-progress-text {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fb-progress-bar {
+  width: 80px;
+  height: 6px;
+  background: #e8e8e8;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.fb-progress-fill {
+  height: 100%;
+  background: #667eea;
+  transition: width 0.3s ease;
+}
+
+.fb-loading-text {
+  text-align: center;
+  font-weight: 600;
+  color: #667eea;
+  padding: 1.5rem;
+  animation: pulse 1s infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+/* ══════════════════════════════════════
+   TREND VIEW (7 Days / 30 Days tabs)
+══════════════════════════════════════ */
+
+.tr-root { animation: stepFadeIn 0.2s ease-out; }
+
+/* ── Summary strip ── */
+.tr-summary {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1.5px solid #ebebf5;
+  gap: 0;
+  padding: 0.85rem 1rem;
+}
+.tr-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+.tr-stat-val {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #1a1a2e;
+  line-height: 1.1;
+}
+.tr-stat-val small {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: #999;
+  margin-left: 1px;
+}
+.tr-stat-lbl {
+  font-size: 0.68rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tr-vdivider {
+  width: 1px;
+  height: 32px;
+  background: #ebebf5;
+  flex-shrink: 0;
+}
+.tr-chg { font-size: 1.15rem !important; }
+.tr-chg--up   { color: #059669; }
+.tr-chg--down { color: #dc2626; }
+.tr-chg--flat { color: #6b7280; }
+
+/* ── Shared card wrapper ── */
+.tr-card {
+  background: #fff;
+  border: 1.5px solid #ebebf5;
+}
+.tr-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.7rem;
+}
+.tr-section-count {
+  font-weight: 500;
+  color: #aaa;
+}
+
+/* ── Insights ── */
+.tr-dots {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.5rem 0;
+}
+.tr-insight-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.tr-insight-list li {
+  font-size: 0.84rem;
+  color: #374151;
+  line-height: 1.45;
+  padding-left: 1rem;
+  position: relative;
+}
+.tr-insight-list li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: #667eea;
+  font-weight: 700;
+}
+.tr-empty-note {
+  font-size: 0.82rem;
+  color: #aaa;
+  margin: 0;
+}
+
+/* ── Trend Bar Chart ── */
+.tr-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.2rem;
+  height: 72px;
+  padding-bottom: 0;
+}
+.tr-chart-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  height: 100%;
+  justify-content: flex-end;
+}
+.tr-chart-val {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: #555;
+  min-height: 0.7rem;
+  line-height: 1;
+}
+.tr-bar-wrap {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex: 1;
+}
+.tr-bar {
+  width: 75%;
+  border-radius: 3px 3px 0 0;
+  min-height: 4px;
+  transition: height 0.4s ease;
+}
+.tr-chart-lbl {
+  font-size: 0.6rem;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+.tr-chart-cnt {
+  font-size: 0.55rem;
+  color: #c4c4d0;
+}
+
+/* ── Problem Items ── */
+.tr-problems { padding-top: 0.85rem; }
+
+.tr-prob {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid #f0f0f8;
+}
+.tr-prob:last-child { border-bottom: none; padding-bottom: 0; }
+.tr-prob--worse { background: #fffbf5; margin: 0 -1rem; padding: 0.7rem 1rem; }
+
+.tr-prob-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+.tr-prob-icon { font-size: 1rem; }
+.tr-prob-name {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+.tr-prob-avg {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #374151;
+}
+.tr-prob-avg small { font-size: 0.6rem; color: #aaa; }
+
+.tr-trend {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+.tr-trend--down { color: #dc2626; background: #fef2f2; }
+.tr-trend--up   { color: #059669; background: #f0fdf4; }
+.tr-trend--flat { color: #6b7280; background: #f3f4f6; }
+
+.tr-prob-issue {
+  font-size: 0.79rem;
+  color: #6b7280;
+  margin: 0 0 0.3rem;
+}
+.tr-prob-cnt {
+  font-size: 0.72rem;
+  color: #aaa;
+}
+.tr-prob-fixes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.tr-prob-fixes li {
+  font-size: 0.76rem;
+  color: #4b5563;
+  padding-left: 0.9rem;
+  position: relative;
+}
+.tr-prob-fixes li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: #9ca3af;
+  font-size: 0.7rem;
+}
+
+/* ── All Good state ── */
+.tr-all-good {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  color: #065f46;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 1rem;
+}

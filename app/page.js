@@ -116,14 +116,11 @@ export default function FeedbackPage() {
   const [loading, setLoading]                       = useState(false);
   const [submitted, setSubmitted]                   = useState(false);
   const [todayStats, setTodayStats]                 = useState(null);
-  const questionsRef                                = useRef(null);
+  const [currentStep, setCurrentStep]               = useState(0); // 0 = category selection
+  const [transitionState, setTransitionState]       = useState('idle'); // 'idle' | 'out' | 'in'
 
-  const allAnswered =
-    selectedCategories.length > 0 &&
-    selectedCategories.every(
-      (cat) => answers[cat]?.q1 != null && answers[cat]?.q2 != null && answers[cat]?.q3 != null
-    );
-  const canSubmit = allAnswered && !loading;
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
 
   function handleCategoryToggle(key) {
     const isSelected = selectedCategories.includes(key);
@@ -131,26 +128,57 @@ export default function FeedbackPage() {
       setSelectedCategories((prev) => prev.filter((k) => k !== key));
       setAnswers((prev) => { const n = { ...prev }; delete n[key]; return n; });
     } else {
-      const wasEmpty = selectedCategories.length === 0;
       setSelectedCategories((prev) => [...prev, key]);
       setAnswers((prev) => ({ ...prev, [key]: { q1: null, q2: null, q3: null } }));
-      if (wasEmpty) {
-        setTimeout(() => questionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
-      }
     }
+  }
+
+  function startFeedback() {
+    setTransitionState('out');
+    setTimeout(() => {
+      setCurrentStep(1);
+      setTransitionState('in');
+      setTimeout(() => setTransitionState('idle'), 200);
+    }, 200); // 140ms out + 60ms pause
   }
 
   function setAnswer(cat, field, val) {
     setAnswers((prev) => ({ ...prev, [cat]: { ...prev[cat], [field]: val } }));
+
+    const currentCatAnswers = answersRef.current[cat] || {};
+    const isNowComplete = 
+      (field === 'q1' ? val : currentCatAnswers.q1) != null &&
+      (field === 'q2' ? val : currentCatAnswers.q2) != null &&
+      (field === 'q3' ? val : currentCatAnswers.q3) != null;
+
+    if (isNowComplete) {
+      setTransitionState('out');
+      setTimeout(() => {
+        if (currentStep < selectedCategories.length) {
+          setCurrentStep(s => s + 1);
+          setTransitionState('in');
+          setTimeout(() => setTransitionState('idle'), 200);
+        } else {
+          handleAutoSubmit();
+        }
+      }, 200); // 140ms out + 60ms pause
+    }
   }
 
-  async function handleSubmit() {
-    if (!canSubmit) return;
+  async function handleAutoSubmit() {
+    if (loading) return;
+
+    const allAnswered = selectedCategories.length > 0 && selectedCategories.every(
+      (c) => answersRef.current[c]?.q1 != null && answersRef.current[c]?.q2 != null && answersRef.current[c]?.q3 != null
+    );
+
+    if (!allAnswered) return;
+
     setLoading(true);
 
-    const rows = selectedCategories.map((cat, idx) => {
+    const rows = selectedCategories.map((cat) => {
       const qs  = CATEGORY_QUESTIONS[cat];
-      const ans = answers[cat];
+      const ans = answersRef.current[cat];
       return {
         cafe_id: null, category: cat,
         q1: ans.q1, q1_label: qs[0],
@@ -172,46 +200,84 @@ export default function FeedbackPage() {
     setSubmitted(true);
   }
 
+  function handleBack() {
+    setTransitionState('out');
+    setTimeout(() => {
+      setCurrentStep(s => Math.max(0, s - 1));
+      setTransitionState('in');
+      setTimeout(() => setTransitionState('idle'), 200);
+    }, 200);
+  }
+
   if (submitted) return <ThankYouScreen stats={todayStats} />;
+
+  const isSelectionStep = currentStep === 0;
 
   return (
     <div className="fb-shell">
-      <div className="fb-card">
-        <div className="fb-header">
-          <span className="fb-logo">🍴</span>
-          <h1>How was your order?</h1>
-          <p>Select all items you had and rate them.</p>
-        </div>
+      <div className={`fb-card fb-view-${transitionState}`}>
+        {isSelectionStep ? (
+          <>
+            <div className="fb-header">
+              <span className="fb-logo">🍴</span>
+              <h1>How was your order?</h1>
+              <p>Select all items you had and rate them.</p>
+            </div>
 
-        {/* Category multi-select */}
-        <div className="fb-section">
-          <p className="fb-label">
-            What did you have?{' '}
-            {selectedCategories.length > 0 && (
-              <span className="fb-badge-count">{selectedCategories.length} selected</span>
-            )}
-          </p>
-          <div className="cat-grid">
-            {CATEGORIES.map(({ key, label }) => (
-              <button
-                key={key}
-                id={`cat-${key}`}
-                type="button"
-                className={`cat-btn ${selectedCategories.includes(key) ? 'cat-btn--active' : ''}`}
-                onClick={() => handleCategoryToggle(key)}
-              >
-                {selectedCategories.includes(key) && <span className="cat-check">✓ </span>}
-                {label}
+            <div className="fb-section">
+              <p className="fb-label">
+                What did you have?{' '}
+                {selectedCategories.length > 0 && (
+                  <span className="fb-badge-count">{selectedCategories.length} selected</span>
+                )}
+              </p>
+              <div className="cat-grid">
+                {CATEGORIES.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    id={`cat-${key}`}
+                    type="button"
+                    className={`cat-btn ${selectedCategories.includes(key) ? 'cat-btn--active' : ''}`}
+                    onClick={() => handleCategoryToggle(key)}
+                  >
+                    {selectedCategories.includes(key) && <span className="cat-check">✓ </span>}
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              id="start-btn"
+              type="button"
+              className={`fb-submit ${selectedCategories.length > 0 ? 'fb-submit--ready' : ''}`}
+              onClick={startFeedback}
+              disabled={selectedCategories.length === 0}
+            >
+              {selectedCategories.length > 0 ? `Rate ${selectedCategories.length} items 🚀` : 'Select items to start'}
+            </button>
+          </>
+        ) : (
+          <div className="fb-step-view">
+            <div className="fb-step-header">
+              <button className="fb-back-btn" onClick={handleBack}>
+                ← Back
               </button>
-            ))}
-          </div>
-        </div>
+              <div className="fb-progress">
+                <span className="fb-progress-text">Step {currentStep} of {selectedCategories.length}</span>
+                <div className="fb-progress-bar">
+                  <div 
+                    className="fb-progress-fill" 
+                    style={{ width: `${(currentStep / selectedCategories.length) * 100}%` }} 
+                  />
+                </div>
+              </div>
+            </div>
 
-        {/* Per-category questions */}
-        {selectedCategories.length > 0 && (
-          <div ref={questionsRef}>
-            <div className="fb-section-divider" />
-            {selectedCategories.map((cat) => {
+            <div className="fb-section-divider" style={{ margin: 0 }} />
+
+            {(() => {
+              const cat = selectedCategories[currentStep - 1];
               const qs  = CATEGORY_QUESTIONS[cat];
               const ans = answers[cat] || {};
               const catLabel = CATEGORIES.find((c) => c.key === cat)?.label;
@@ -246,23 +312,13 @@ export default function FeedbackPage() {
                   })}
                 </div>
               );
-            })}
+            })()}
 
+            {loading && (
+              <p className="fb-loading-text">Submitting...</p>
+            )}
           </div>
         )}
-
-        <button
-          id="submit-btn"
-          type="button"
-          className={`fb-submit ${canSubmit ? 'fb-submit--ready' : ''}`}
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-        >
-          {loading ? 'Submitting…'
-            : selectedCategories.length === 0 ? 'Select items above to start'
-            : canSubmit ? `Submit ${selectedCategories.length > 1 ? `${selectedCategories.length} ratings` : 'Feedback'} 🚀`
-            : 'Answer all questions to continue'}
-        </button>
       </div>
     </div>
   );
