@@ -62,23 +62,21 @@ function formatIssue(label) {
   return map[label] || label;
 }
 
-function getActionBullets(label) {
-  const l = label.toLowerCase();
-  if (l.includes('taste'))                              return ['Taste it now — adjust seasoning', 'Check ingredient freshness'];
-  if (l.includes('hot') && !l.includes('cold'))        return ['Serve immediately after cooking', "Don't hold longer than 3 min"];
-  if (l.includes('cold') && !l.includes('hot'))        return ['Pre-chill glasses before serving', 'Never leave drinks out before serving'];
-  if (l.includes('crispy'))                            return ["Serve immediately — don't stack or cover", 'Check oil temp is 170–180°C'];
-  if (l.includes('quantity') || l.includes('filling') || l.includes('enough'))
-                                                       return ['Check portion against standard', 'Brief staff to add more if in doubt'];
-  if (l.includes('fresh'))                             return ['Check ingredient batch — smell and date', 'Replace anything that looks off'];
-  if (l.includes('thick') || l.includes('cream'))     return ['Add more base mix or ice cream', 'Blend longer for smooth texture'];
-  if (l.includes('consist'))                           return ['Use measuring cup — no freestyling', 'Follow recipe card every time'];
-  if (l.includes('topping'))                           return ['Distribute toppings evenly', 'Verify topping freshness'];
-  if (l.includes('patty'))                             return ['Cook fresh per order — no pre-cooking', 'Check patty color and smell'];
-  if (l.includes('sauce'))                             return ['Taste the sauce now — fix ratio', 'Check sauce batch freshness'];
-  if (l.includes('garlic') || l.includes('cheese'))   return ['Spread garlic butter evenly', 'Add 1–2 min more in oven if pale'];
-  if (l.includes('assembled') || l.includes('proper'))return ['Assemble fresh per order', 'Follow assembly order on card'];
-  return ['Check prep against recipe card', 'Taste before serving'];
+const FIX_TEMPLATES = {
+  pizza: { 'Taste': ["Taste one slice now — adjust salt/sauce", "Check if ingredients are fresh"], 'Hot enough': ["Send immediately after baking", "Don’t keep waiting on counter"], 'Toppings quality': ["Don’t be stingy with toppings", "Use fresh toppings, not old batch"] },
+  sandwich: { 'Taste': ["Taste once before serving", "Fix chutney/sauce balance"], 'Crispy / grilled': ["Grill properly — don’t rush", "Serve immediately, don’t keep packed"], 'Filling enough': ["Add proper filling — don’t reduce", "Keep portion same every time"] },
+  burger: { 'Taste': ["Check sauce balance", "Taste once before serving"], 'Patty quality': ["Don’t use old patties", "Cook fresh, don’t keep ready"], 'Well assembled': ["Assemble properly — don’t rush", "Keep layers neat, not messy"] },
+  maggi: { 'Taste': ["Adjust masala properly", "Taste before serving"], 'Properly cooked': ["Don’t overcook or make too dry", "Follow same cooking time every time"], 'Quantity enough': ["Don’t reduce quantity", "Keep serving consistent"] },
+  pasta: { 'Taste': ["Taste before serving", "Fix salt/sauce balance"], 'Cooked properly': ["Don’t overcook — keep texture right", "Follow same timing"], 'Sauce quality': ["Check sauce taste before serving", "Don’t use old sauce batch"] },
+  fries: { 'Crispy': ["Fry properly — don’t rush batch", "Don’t keep ready, serve fresh"], 'Fresh': ["Don’t use old stock", "Check oil — change if needed"], 'Quantity enough': ["Don’t reduce portion", "Serve full quantity every time"] },
+  garlic_bread: { 'Taste': ["Check butter & seasoning", "Taste once before serving"], 'Crispy': ["Toast properly — don’t rush", "Serve immediately"], 'Garlic / cheese flavor': ["Apply enough garlic butter", "Don’t undercook — bake properly"] },
+  shakes: { 'Taste': ["Adjust sugar/flavor", "Taste before serving"], 'Thick & creamy': ["Add more ice cream/base", "Blend properly"], 'Cold enough': ["Use chilled milk", "Serve immediately"] },
+  cold_coffee: { 'Taste': ["Adjust coffee/sugar balance", "Taste before serving"], 'Cold enough': ["Add enough ice", "Don’t let it sit before serving"], 'Consistency': ["Blend properly", "Keep same ratio every time"] },
+  hot_beverages: { 'Taste': ["Adjust sugar/coffee/tea balance", "Taste before serving"], 'Hot enough': ["Serve immediately", "Don’t let it sit"], 'Properly made': ["Follow same method every time", "Don’t rush preparation"] },
+};
+
+function getActionBullets(cat, label) {
+  return FIX_TEMPLATES[cat]?.[label] || ["Check prep against recipe card", "Taste before serving"];
 }
 
 // ── Analytics helpers ──────────────────────────────────────────
@@ -167,7 +165,7 @@ function buildCards(rows) {
     const lastIssue     = rows.filter((r) => r.category === cat)[0]?.created_at ?? null;
     const questions     = getQuestionAverages(rows, cat);
     const recentEntryAvg= getRecentEntryAvg(rows, cat);
-    const bullets       = wq ? getActionBullets(wq.label) : [];
+    const bullets       = wq ? getActionBullets(cat, wq.label) : [];
     const urgent        = isUrgent(trend, unhappy);
     const count         = rows.filter((r) => r.category === cat).length;
     return { cat, avg: a, priority, wq, unhappy, trend, lastIssue, questions, recentEntryAvg, bullets, urgent, count };
