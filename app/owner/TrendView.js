@@ -61,7 +61,7 @@ function computeDayStrip(rows) {
     const startMs = d.getTime(), endMs = startMs + 86400000;
     const dayRows = rows.filter(r => { const t = toMs(r.created_at); return t >= startMs && t < endMs; });
     const vals = dayRows.flatMap(r => [r.q1,r.q2,r.q3]).filter(v => v != null);
-    return { label: d.toLocaleDateString('en-IN',{weekday:'short'}), dateNum: d.getDate(), avg: avg(vals), count: dayRows.length };
+    return { label: d.toLocaleDateString('en-IN',{weekday:'short'}), dateLabel: d.toLocaleDateString('en-IN',{day:'numeric',month:'short'}), avg: avg(vals), count: dayRows.length };
   });
 }
 
@@ -267,15 +267,17 @@ export default function TrendView({ rows, tab }) {
         {/* 7-day bar chart */}
         {tab==='week'&&dayStrip&&(
           <div className="tr-chart">
-            {dayStrip.map(({label,dateNum,avg:colAvg,count},i)=>{
-              const h=colAvg!==null?Math.max(4,Math.round((colAvg/5)*44)):4;
+            {dayStrip.map(({label,dateLabel,avg:colAvg,count},i)=>{
+              const h=colAvg!==null?Math.max(4,Math.round((colAvg/5)*70)):4;
               return(
                 <div key={i} className="tr-chart-col">
-                  <span className="tr-chart-val">{colAvg!==null?colAvg.toFixed(1):''}</span>
-                  <div className="tr-bar-wrap"><div className="tr-bar" style={{height:`${h}px`,background:barColor(colAvg)}}/></div>
+                  <div className="tr-bar-wrap">
+                    <span className="tr-chart-val">{colAvg!==null?colAvg.toFixed(1):''}</span>
+                    <div className="tr-bar" style={{height:`${h}px`,background:barColor(colAvg)}}/>
+                  </div>
                   <span className="tr-chart-lbl">{label}</span>
-                  <span className="tr-chart-lbl" style={{color:'#c4c4d0'}}>{dateNum}</span>
-                  {count>0&&<span className="tr-chart-cnt">{count}</span>}
+                  <span className="tr-chart-lbl" style={{color:'#c4c4d0'}}>{dateLabel}</span>
+                  {count>0&&<span className="tr-chart-cnt">{count} resp</span>}
                 </div>
               );
             })}
