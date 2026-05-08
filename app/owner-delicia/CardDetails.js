@@ -39,8 +39,8 @@ export default function CardDetails({ questions, recentAvg, cardAvg }) {
             {questions.map(({ label, avg: a }, i) => (
               <div key={label} className="ow-details-row">
                 <span className="ow-details-label">{label}</span>
-                <span className={`ow-details-score ${i === 0 ? 'ow-details-score--worst' : ''}`}>
-                  {a.toFixed(1)}{i === 0 ? ' ↓' : ''}
+                <span className={`ow-details-score ${a < 4.0 ? 'ow-details-score--worst' : a >= 4.5 ? 'ow-details-score--good' : ''}`}>
+                  {a.toFixed(1)}{a < 4.0 ? ' ↓' : ''}
                 </span>
               </div>
             ))}

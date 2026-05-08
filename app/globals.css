@@ -900,6 +900,20 @@ body {
   font-weight: 600;
 }
 
+.ow-happy-line {
+  font-size: 0.8rem;
+  color: #15803d;
+  font-weight: 500;
+  margin-bottom: 0.35rem;
+}
+
+.ow-soft-line {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-style: italic;
+  margin-bottom: 0.35rem;
+}
+
 /* ── Top-right time line ── */
 .ow-card-time {
   font-size: 0.72rem;
@@ -1046,6 +1060,10 @@ body {
 
 .ow-details-score--worst {
   color: #b91c1c;
+}
+
+.ow-details-score--good {
+  color: #15803d;
 }
 
 .ow-details-recent {

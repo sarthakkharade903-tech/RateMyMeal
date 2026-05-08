@@ -79,6 +79,26 @@ function getActionBullets(cat, label) {
   return FIX_TEMPLATES[cat]?.[label] || ["Check prep against recipe card", "Taste before serving"];
 }
 
+function getIssueDisplay(cat, wq) {
+  if (!wq || wq.avg >= 4.5)
+    return { type: 'happy', text: 'Customers are happy', bullets: [] };
+  if (wq.avg >= 4.0) {
+    const soft = {
+      'Taste':'Could tweak the taste slightly','Hot enough':'Could serve a bit hotter',
+      'Cold enough':'Could be a bit colder','Crispy':'Could improve crispiness slightly',
+      'Crispy / grilled':'Could improve crispiness slightly','Fresh':'Minor freshness area',
+      'Patty quality':'Patty could be slightly better','Consistency':'Minor consistency area',
+      'Filling enough':'Filling could be slightly more','Quantity enough':'Portion could be slightly more',
+      'Thick & creamy':'Could be a bit thicker','Toppings quality':'Toppings could be slightly better',
+      'Sauce quality':'Sauce could be slightly improved','Garlic / cheese flavor':'Flavor could be slightly stronger',
+      'Well assembled':'Assembly could be slightly neater','Properly cooked':'Could improve cooking slightly',
+      'Cooked properly':'Could improve cooking slightly','Properly made':'Could be prepared slightly better',
+    };
+    return { type: 'soft', text: soft[wq.label] || 'Minor improvement area', bullets: [] };
+  }
+  return { type: 'real', text: formatIssue(wq.label), avgText: wq.avg.toFixed(1), bullets: getActionBullets(cat, wq.label) };
+}
+
 // ── Analytics helpers ──────────────────────────────────────────
 function avg(arr) {
   const c = arr.filter((v) => v != null);
@@ -165,10 +185,10 @@ function buildCards(rows) {
     const lastIssue     = rows.filter((r) => r.category === cat)[0]?.created_at ?? null;
     const questions     = getQuestionAverages(rows, cat);
     const recentEntryAvg= getRecentEntryAvg(rows, cat);
-    const bullets       = wq ? getActionBullets(cat, wq.label) : [];
+    const issueDisplay  = getIssueDisplay(cat, wq);
     const urgent        = isUrgent(trend, unhappy);
     const count         = rows.filter((r) => r.category === cat).length;
-    return { cat, avg: a, priority, wq, unhappy, trend, lastIssue, questions, recentEntryAvg, bullets, urgent, count };
+    return { cat, avg: a, priority, wq, unhappy, trend, lastIssue, questions, recentEntryAvg, issueDisplay, urgent, count };
   }).filter(Boolean).sort((a, b) => {
     const po = PRIORITY_ORDER[a.priority.level] - PRIORITY_ORDER[b.priority.level];
     return po !== 0 ? po : a.avg - b.avg;
@@ -338,7 +358,7 @@ export default function OwnerPage() {
             </div>
 
             {/* Category cards */}
-            {displayCards.map(({ cat, avg: catA, priority, wq, unhappy, trend, lastIssue, questions, recentEntryAvg, bullets, urgent, count }) => (
+            {displayCards.map(({ cat, avg: catA, priority, wq, unhappy, trend, lastIssue, questions, recentEntryAvg, issueDisplay, urgent, count }) => (
               <div key={cat} className={`ow-card ow-cat-card ow-cat-card--${priority.level} ${urgent && priority.level === 'critical' ? 'ow-cat-card--urgent' : ''}`}>
                 <div className="ow-cat-header">
                   <span className="ow-cat-icon">{CAT_ICONS[cat] || '🍴'}</span>
@@ -351,9 +371,11 @@ export default function OwnerPage() {
                   <span className="ow-cat-score">{catA.toFixed(1)}<small>/5</small></span>
                   <span className="ow-cat-count">{count} {count === 1 ? 'response' : 'responses'}</span>
                 </div>
-                {unhappy && wq && (<p className="ow-warning-line">⚠️ <strong>{unhappy.unhappy} of last {unhappy.total}</strong> unhappy</p>)}
-                {wq && (<p className="ow-worst-line"><strong>{formatIssue(wq.label)}</strong> <span className="ow-worst-score">({wq.avg.toFixed(1)})</span>{trend === 'worse' ? ' ↓' : trend === 'improving' ? ' ↑' : ''}</p>)}
-                {bullets.length > 0 && (<><p className="ow-fix-label">→ Fix now:</p><ul className="ow-fix-list">{bullets.map((b, i) => <li key={i}>{b}</li>)}</ul></>)}
+                {issueDisplay.type === 'real' && unhappy && (<p className="ow-warning-line">⚠️ <strong>{unhappy.unhappy} of last {unhappy.total}</strong> unhappy</p>)}
+                {issueDisplay.type === 'happy' && (<p className="ow-happy-line">✅ Customers are happy</p>)}
+                {issueDisplay.type === 'soft'  && (<p className="ow-soft-line">~ {issueDisplay.text}</p>)}
+                {issueDisplay.type === 'real'  && (<p className="ow-worst-line"><strong>{issueDisplay.text}</strong> <span className="ow-worst-score">({issueDisplay.avgText})</span>{trend === 'worse' ? ' ↓' : trend === 'improving' ? ' ↑' : ''}</p>)}
+                {issueDisplay.type === 'real' && issueDisplay.bullets.length > 0 && (<><p className="ow-fix-label">→ Fix now:</p><ul className="ow-fix-list">{issueDisplay.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul></>)}
                 <CardDetails questions={questions} recentAvg={recentEntryAvg} cardAvg={catA} />
               </div>
             ))}
