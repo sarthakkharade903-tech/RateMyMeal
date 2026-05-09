@@ -179,32 +179,105 @@ function generateWeekInsights(rows) {
   return ins.slice(0,4);
 }
 
-function generateMonthInsights(calWeeks) {
-  if (calWeeks.length < 2) return generateWeekInsights(calWeeks.flatMap(w=>w.rows));
-  const curr = calWeeks[calWeeks.length-1], prev = calWeeks[calWeeks.length-2];
-  const ins = [];
+function getMonthlyStats(calWeeks) {
+  const validWeeks = calWeeks.filter(w => w.count > 0);
+  if (!validWeeks.length) return { bestWeek: null, weakestWeek: null, consistencyItems: [], weeklyCardsData: [] };
 
-  if (curr.avg!==null && prev.avg!==null) {
-    const diff = curr.avg - prev.avg;
-    if (Math.abs(diff)>0.1) ins.push(`Overall rating ${diff>0?'improved':'dropped'} from ${prev.avg.toFixed(1)} → ${curr.avg.toFixed(1)} this week.`);
+  const bestWeek = validWeeks.reduce((max, w) => w.avg > max.avg ? w : max, validWeeks[0]);
+  const weakestWeek = validWeeks.reduce((min, w) => w.avg < min.avg ? w : min, validWeeks[0]);
+
+  const consistencyMap = {};
+  calWeeks.forEach(w => {
+    const cats = [...new Set(w.rows.map(r => r.category).filter(Boolean))];
+    cats.forEach(cat => {
+      const catRows = w.rows.filter(r => r.category === cat);
+      const a = avg(catRows.flatMap(r => [r.q1,r.q2,r.q3]).filter(v => v != null));
+      if (a !== null && a < 3.5) {
+        if (!consistencyMap[cat]) consistencyMap[cat] = 0;
+        consistencyMap[cat]++;
+      }
+    });
+  });
+
+  const consistencyItems = Object.entries(consistencyMap)
+    .map(([cat, count]) => ({ cat, count }))
+    .filter(item => item.count >= 2)
+    .sort((a, b) => b.count - a.count);
+
+  const weeklyCardsData = [...calWeeks].map((w, index, arr) => {
+    const prevWeek = index > 0 ? arr[index - 1] : null;
+    
+    const catCounts = {};
+    w.rows.forEach(r => { if(r.category) { catCounts[r.category] = (catCounts[r.category] || 0) + 1; } });
+    let mostReviewed = null; let maxCount = 0;
+    Object.entries(catCounts).forEach(([cat, cnt]) => { if(cnt > maxCount) { maxCount = cnt; mostReviewed = cat; } });
+
+    let lowestRated = null; let lowestAvg = Infinity;
+    const catAvgs = {};
+    Object.keys(catCounts).forEach(cat => {
+      const catRows = w.rows.filter(r => r.category === cat);
+      const a = avg(catRows.flatMap(r => [r.q1,r.q2,r.q3]).filter(v => v != null));
+      catAvgs[cat] = a;
+      if (a !== null && a < lowestAvg) { lowestAvg = a; lowestRated = cat; }
+    });
+
+    let biggestImprovement = null; let maxImp = 0;
+    let biggestDecline = null; let maxDec = 0;
+    if (prevWeek) {
+      Object.keys(catCounts).forEach(cat => {
+        const a = catAvgs[cat];
+        const pRows = prevWeek.rows.filter(r => r.category === cat);
+        const pAvg = avg(pRows.flatMap(r => [r.q1,r.q2,r.q3]).filter(v => v != null));
+        if (a !== null && pAvg !== null) {
+          const diff = a - pAvg;
+          if (diff > 0.3 && diff > maxImp) { maxImp = diff; biggestImprovement = cat; }
+          if (diff < -0.3 && diff < maxDec) { maxDec = diff; biggestDecline = cat; }
+        }
+      });
+    }
+
+    const timeGrp = { Morning: 0, Afternoon: 0, Evening: 0 };
+    w.rows.forEach(r => {
+      const a = avg([r.q1,r.q2,r.q3].filter(v => v != null));
+      if (a !== null && a < 3.5) {
+        const h = new Date(toMs(r.created_at)).getHours();
+        if (h >= 6 && h < 12) timeGrp.Morning++;
+        else if (h >= 12 && h < 17) timeGrp.Afternoon++;
+        else timeGrp.Evening++;
+      }
+    });
+    let peakComplaintTime = null; let maxC = 0;
+    Object.entries(timeGrp).forEach(([t, c]) => { if (c > maxC) { maxC = c; peakComplaintTime = t; } });
+
+    return { ...w, mostReviewed, maxCount, lowestRated, lowestAvg, biggestImprovement, maxImp, biggestDecline, maxDec, peakComplaintTime };
+  }).reverse(); 
+
+  return { bestWeek, weakestWeek, consistencyItems, weeklyCardsData, validWeeks };
+}
+
+function generateMonthInsights(consistencyItems, validWeeks) {
+  const ins = [];
+  if (consistencyItems.length > 0) {
+    const topCat = CAT_LABELS[consistencyItems[0].cat] || consistencyItems[0].cat;
+    ins.push(`${topCat} is your most persistent issue, causing low ratings in ${consistencyItems[0].count} of the last ${validWeeks.length} weeks.`);
+    if (consistencyItems.length > 1) {
+      const secondCat = CAT_LABELS[consistencyItems[1].cat] || consistencyItems[1].cat;
+      ins.push(`${secondCat} also shows recurring low ratings (${consistencyItems[1].count} weeks).`);
+    }
+  } else {
+    ins.push("No major recurring issues detected across the past month. Consistency is strong.");
   }
-  const cats=[...new Set([...curr.rows,...prev.rows].map(r=>r.category).filter(Boolean))];
-  const improving=[],worsening=[],persistentLow=[];
-  for(const cat of cats){
-    const ca=avg(curr.rows.filter(r=>r.category===cat).flatMap(r=>[r.q1,r.q2,r.q3]).filter(v=>v!=null));
-    const pa=avg(prev.rows.filter(r=>r.category===cat).flatMap(r=>[r.q1,r.q2,r.q3]).filter(v=>v!=null));
-    const n=CAT_LABELS[cat]||cat;
-    if(ca!==null&&pa!==null){
-      if(ca-pa>0.4)improving.push(n);
-      else if(pa-ca>0.4)worsening.push(n);
-      if(ca<3.5&&pa<3.5)persistentLow.push(n);
+  
+  if (validWeeks.length >= 2) {
+    const latest = validWeeks[validWeeks.length - 1];
+    const prev = validWeeks[validWeeks.length - 2];
+    if (latest.avg && prev.avg) {
+      const diff = latest.avg - prev.avg;
+      if (diff > 0.2) ins.push(`Recent performance improved notably from ${prev.avg.toFixed(1)} to ${latest.avg.toFixed(1)}.`);
+      else if (diff < -0.2) ins.push(`Recent performance slipped from ${prev.avg.toFixed(1)} to ${latest.avg.toFixed(1)}.`);
     }
   }
-  if(improving.length&&ins.length<3) ins.push(`${improving.slice(0,2).join(' and ')} improved this week.`);
-  if(worsening.length&&ins.length<3) ins.push(`${worsening.slice(0,2).join(' and ')} dropped in ratings this week.`);
-  if(persistentLow.length&&ins.length<4) ins.push(`${persistentLow.slice(0,2).join(' and ')} ${persistentLow.length===1?'has':'have'} been low for 2+ weeks.`);
-  if(!ins.length) return generateWeekInsights(curr.rows);
-  return ins.slice(0,4);
+  return ins.slice(0, 3);
 }
 
 // ── Component ──────────────────────────────────────────────────
@@ -218,11 +291,15 @@ export default function TrendView({ rows, tab }) {
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
 
+  const [expandedWeeks, setExpandedWeeks] = useState({});
+  const toggleWeek = (i) => setExpandedWeeks(prev => ({ ...prev, [i]: !prev[i] }));
+
   const period  = tab==='week'?'week':'month';
 
   // ── Data per tab ──
   const weekDays   = tab==='week' ? computeWeekDays(rows, weekOffset) : null;
   const calWeeks   = tab==='month'? computeCalWeeks(rows)   : null;
+  const monthStats = tab==='month'? getMonthlyStats(calWeeks) : null;
   
   // For 'week', filter rows to only those in the current week view
   const weekRows = tab==='week' ? rows.filter(r => {
@@ -261,7 +338,7 @@ export default function TrendView({ rows, tab }) {
   useEffect(()=>{
     if(!currRows.length){setInsightsLoading(false);return;}
     setInsightsLoading(true);
-    const ruleInsights=tab==='week'?generateWeekInsights(currRows):generateMonthInsights(calWeeks||[]);
+    const ruleInsights=tab==='week'?generateWeekInsights(currRows):generateMonthInsights(monthStats?.consistencyItems || [], monthStats?.validWeeks || []);
     fetch('/api/insights',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({tab,overallAvg:overall?.toFixed(2),totalResponses:total,ruleInsights})})
       .then(r=>r.json()).then(d=>setInsights(d.insights?.length?d.insights:ruleInsights))
@@ -294,23 +371,35 @@ export default function TrendView({ rows, tab }) {
   return (
     <div className="tr-root">
 
-      {/* Summary */}
-      <div className="ow-card tr-summary">
-        <div className="tr-stat"><span className="tr-stat-val">{overall?.toFixed(1)??'—'}<small>/5</small></span><span className="tr-stat-lbl">avg rating</span></div>
-        <div className="tr-vdivider"/>
-        <div className="tr-stat"><span className="tr-stat-val">{total}</span><span className="tr-stat-lbl">responses</span></div>
-        {change!==null&&(<><div className="tr-vdivider"/><div className="tr-stat"><span className={`tr-stat-val tr-chg ${change>0.05?'tr-chg--up':change<-0.05?'tr-chg--down':'tr-chg--flat'}`}>{changeSign}{change.toFixed(1)}</span><span className="tr-stat-lbl">vs prev {period}</span></div></>)}
-      </div>
+      {/* ── SUMMARY / SNAPSHOT ── */}
+      {tab === 'week' ? (
+        <div className="ow-card tr-summary">
+          <div className="tr-stat"><span className="tr-stat-val">{overall?.toFixed(1)??'—'}<small>/5</small></span><span className="tr-stat-lbl">avg rating</span></div>
+          <div className="tr-vdivider"/>
+          <div className="tr-stat"><span className="tr-stat-val">{total}</span><span className="tr-stat-lbl">responses</span></div>
+          {change!==null&&(<><div className="tr-vdivider"/><div className="tr-stat"><span className={`tr-stat-val tr-chg ${change>0.05?'tr-chg--up':change<-0.05?'tr-chg--down':'tr-chg--flat'}`}>{changeSign}{change.toFixed(1)}</span><span className="tr-stat-lbl">vs prev {period}</span></div></>)}
+        </div>
+      ) : (
+        <div className="ow-card tr-summary" style={{gap: '0.5rem', flexWrap: 'wrap'}}>
+          <div className="tr-stat" style={{flexBasis: '40%'}}><span className="tr-stat-val">{overall?.toFixed(1)??'—'}<small>/5</small></span><span className="tr-stat-lbl">avg rating</span></div>
+          <div className="tr-vdivider"/>
+          <div className="tr-stat" style={{flexBasis: '40%'}}><span className="tr-stat-val">{total}</span><span className="tr-stat-lbl">responses</span></div>
+          <div style={{width: '100%', height: '1px', background: '#ebebf5', margin: '0.2rem 0'}}/>
+          <div className="tr-stat" style={{flexBasis: '40%'}}><span className="tr-stat-val" style={{color:'#10b981'}}>{monthStats?.bestWeek?.avg?.toFixed(1)??'—'}</span><span className="tr-stat-lbl">best week</span></div>
+          <div className="tr-vdivider"/>
+          <div className="tr-stat" style={{flexBasis: '40%'}}><span className="tr-stat-val" style={{color:'#ef4444'}}>{monthStats?.weakestWeek?.avg?.toFixed(1)??'—'}</span><span className="tr-stat-lbl">weakest week</span></div>
+        </div>
+      )}
 
-      {/* Key Insights */}
+      {/* ── INSIGHTS ── */}
       <div className="ow-card tr-card">
-        <p className="tr-section-title">💡 Key Insights</p>
+        <p className="tr-section-title">💡 {tab === 'week' ? 'Key Insights' : 'Monthly Insights'}</p>
         {insightsLoading?(<div className="tr-dots"><span className="ow-loading-dot"/><span className="ow-loading-dot"/><span className="ow-loading-dot"/></div>)
           :insights?.length?(<ul className="tr-insight-list">{insights.map((ins,i)=><li key={i}>{ins}</li>)}</ul>)
           :(<p className="tr-empty-note">Not enough data for insights yet.</p>)}
       </div>
 
-      {/* Rating Trend */}
+      {/* ── RATING TREND (Keep 30-day Chart) ── */}
       <div className="ow-card tr-card">
         <div className="tr-trend-header" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
@@ -326,7 +415,6 @@ export default function TrendView({ rows, tab }) {
           )}
         </div>
 
-        {/* 7-day bar chart */}
         {tab==='week'&&weekDays&&(
           <div className="tr-chart" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
             {weekDays.map(({label,dateLabel,avg:colAvg,count,isFuture},i)=>{
@@ -346,7 +434,6 @@ export default function TrendView({ rows, tab }) {
           </div>
         )}
 
-        {/* 30-day calendar weeks chart */}
         {tab==='month'&&calWeeks&&(
           <div className="tr-cal-chart">
             {calWeeks.map(({label,avg:wAvg,count},i)=>{
@@ -354,7 +441,7 @@ export default function TrendView({ rows, tab }) {
               return(
                 <div key={i} className="tr-cal-col">
                   <span className="tr-chart-val">{wAvg!==null?wAvg.toFixed(1):''}</span>
-                  <div className="tr-bar-wrap"><div className="tr-bar" style={{height:`${h}px`,background:barColor(wAvg)}}/></div>
+                  <div className="tr-bar-wrap"><div className="tr-bar" style={{height:`${h}px`,background:barColor(wAvg, false)}}/></div>
                   <span className="tr-cal-lbl">{label}</span>
                   {count>0&&<span className="tr-chart-cnt">{count} resp</span>}
                 </div>
@@ -364,12 +451,60 @@ export default function TrendView({ rows, tab }) {
         )}
       </div>
 
-      {/* Problem Items */}
-      {problemItems.length>0?(
+      {/* ── CONSISTENCY TRACKER (Month Only) ── */}
+      {tab === 'month' && monthStats?.consistencyItems?.length > 0 && (
+        <div className="ow-card tr-card">
+          <p className="tr-section-title">🔄 Consistency Tracker</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
+            {monthStats.consistencyItems.map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem', background: '#fffbf5', border: '1px solid #ffedd5', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.2rem' }}>{CAT_ICONS[item.cat]||'🍴'}</span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#1a1a2e' }}>{CAT_LABELS[item.cat]||item.cat}</span>
+                </div>
+                <span className="tr-tag tr-tag--worse">Issues in {item.count}/{monthStats.validWeeks.length} weeks</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── WEEKLY TIMELINE CARDS (Month Only) ── */}
+      {tab === 'month' && monthStats?.weeklyCardsData?.length > 0 && (
+        <div className="ow-card tr-card" style={{ paddingBottom: '0.5rem' }}>
+          <p className="tr-section-title">📅 Weekly Timeline</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+            {monthStats.weeklyCardsData.map((w, i) => (
+              <div key={i} style={{ padding: '0.75rem', border: '1px solid #ebebf5', borderRadius: '8px', cursor: 'pointer', transition: 'background 0.15s' }} onClick={() => toggleWeek(i)}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1a1a2e', marginBottom: '0.1rem' }}>{w.label}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>{w.count} resp {w.lowestRated && <span style={{color:'#b91c1c', fontWeight:600}}>· ⚠️ {CAT_LABELS[w.lowestRated]||w.lowestRated}</span>}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '1rem', fontWeight: 800, color: barColor(w.avg, false) }}>{w.avg !== null ? w.avg.toFixed(1) : '—'}</span>
+                    <span style={{ fontSize: '0.9rem', color: '#ccc', transition: 'transform 0.2s', transform: expandedWeeks[i] ? 'rotate(180deg)' : 'none' }}>▼</span>
+                  </div>
+                </div>
+                {expandedWeeks[i] && (
+                  <div style={{ marginTop: '0.8rem', paddingTop: '0.6rem', borderTop: '1px dashed #e5e7eb', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {w.mostReviewed && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Most Reviewed:</span> <span style={{fontWeight:600}}>{CAT_LABELS[w.mostReviewed]||w.mostReviewed} ({w.maxCount})</span></div>}
+                    {w.lowestRated && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Lowest Rated:</span> <span style={{fontWeight:600,color:'#dc2626'}}>{CAT_LABELS[w.lowestRated]||w.lowestRated} ({w.lowestAvg.toFixed(1)})</span></div>}
+                    {w.biggestImprovement && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Most Improved:</span> <span style={{fontWeight:600,color:'#059669'}}>{CAT_LABELS[w.biggestImprovement]||w.biggestImprovement} (+{w.maxImp.toFixed(1)})</span></div>}
+                    {w.biggestDecline && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Biggest Decline:</span> <span style={{fontWeight:600,color:'#dc2626'}}>{CAT_LABELS[w.biggestDecline]||w.biggestDecline} ({w.maxDec.toFixed(1)})</span></div>}
+                    {w.peakComplaintTime && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Peak Complaints:</span> <span style={{fontWeight:600}}>{w.peakComplaintTime}s</span></div>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── PROBLEM ITEMS (Week Only) ── */}
+      {tab === 'week' && (problemItems.length > 0 ? (
         <div className="ow-card tr-card tr-problems">
-          <p className="tr-section-title">⚠️ Problem Items <span className="tr-section-count">({problemItems.length})</span>
-            {tab==='month'&&currRows.length>0&&<span className="tr-section-sub"> · based on current week</span>}
-          </p>
+          <p className="tr-section-title">⚠️ Problem Items <span className="tr-section-count">({problemItems.length})</span></p>
           {problemItems.map(({cat,avg:catAvg,trend,worstLabel,count,isWorsening,insightTag})=>{
             const bullets=getActionBullets(cat, worstLabel);
             return(
@@ -387,9 +522,9 @@ export default function TrendView({ rows, tab }) {
             );
           })}
         </div>
-      ):(
-        <div className="ow-card tr-all-good">✅ No persistent issues this {period}</div>
-      )}
+      ) : (
+        <div className="ow-card tr-all-good">✅ No persistent issues this week</div>
+      ))}
 
     </div>
   );
