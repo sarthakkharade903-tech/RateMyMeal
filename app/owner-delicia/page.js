@@ -33,7 +33,8 @@ function getStartDate(tab) {
     d.setHours(0, 0, 0, 0);
     return d.toISOString();
   }
-  if (tab === 'week')  return new Date(Date.now() - 7  * 24 * 60 * 60 * 1000).toISOString();
+  // For week view, we now need more history to allow swiping to previous weeks
+  if (tab === 'week')  return new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
   return                      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 }
 

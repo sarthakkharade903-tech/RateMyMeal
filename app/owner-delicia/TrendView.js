@@ -54,14 +54,30 @@ function getActionBullets(cat, label) {
 }
 
 // ── Calendar computations ──────────────────────────────────────
-// 7-day: last 7 calendar days including today
-function computeDayStrip(rows) {
+// 7-day: calendar week (Mon-Sun) based on weekOffset
+function computeWeekDays(rows, weekOffset) {
+  const thisMonday = getMondayOf(Date.now());
+  const startOfWeek = new Date(thisMonday.getTime() - weekOffset * 7 * 86400000);
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - (6 - i));
-    const startMs = d.getTime(), endMs = startMs + 86400000;
+    const d = new Date(startOfWeek.getTime() + i * 86400000);
+    const startMs = d.getTime();
+    const endMs = startMs + 86400000;
+    const isFuture = d > today;
+
     const dayRows = rows.filter(r => { const t = toMs(r.created_at); return t >= startMs && t < endMs; });
     const vals = dayRows.flatMap(r => [r.q1,r.q2,r.q3]).filter(v => v != null);
-    return { label: d.toLocaleDateString('en-IN',{weekday:'short'}), dateLabel: d.toLocaleDateString('en-IN',{day:'numeric',month:'short'}), avg: avg(vals), count: dayRows.length };
+    
+    return { 
+      label: d.toLocaleDateString('en-IN', { weekday: 'short' }), 
+      dateLabel: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), 
+      avg: isFuture ? null : avg(vals), 
+      count: isFuture ? 0 : dayRows.length,
+      isFuture,
+      date: d
+    };
   });
 }
 
@@ -196,47 +212,84 @@ export default function TrendView({ rows, tab }) {
   const [insights, setInsights]             = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [prevAvg, setPrevAvg]               = useState(null);
+  
+  // Week navigation state
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
 
   const period  = tab==='week'?'week':'month';
-  const total   = rows.length;
-  const overall = avg(rows.flatMap(r=>[r.q1,r.q2,r.q3]).filter(v=>v!=null));
 
   // ── Data per tab ──
-  const dayStrip   = tab==='week' ? computeDayStrip(rows)   : null;
+  const weekDays   = tab==='week' ? computeWeekDays(rows, weekOffset) : null;
   const calWeeks   = tab==='month'? computeCalWeeks(rows)   : null;
-  const currRows   = tab==='month'? (calWeeks[calWeeks.length-1]?.rows||[]) : rows;
-  const prevRows   = tab==='month'? (calWeeks[calWeeks.length-2]?.rows||[]) : null;
-  const problemItems = tab==='week' ? buildProblemItems(rows,null) : buildProblemItems(currRows,prevRows);
+  
+  // For 'week', filter rows to only those in the current week view
+  const weekRows = tab==='week' ? rows.filter(r => {
+    const t = toMs(r.created_at);
+    return t >= weekDays[0].date.getTime() && t < weekDays[6].date.getTime() + 86400000;
+  }) : [];
+  
+  const currRows   = tab==='month'? (calWeeks[calWeeks.length-1]?.rows||[]) : weekRows;
+  
+  // For 'week' tab problem items, we compare to previous week.
+  const weekPrevRows = tab==='week' ? rows.filter(r => {
+    const t = toMs(r.created_at);
+    return t >= weekDays[0].date.getTime() - 7 * 86400000 && t < weekDays[0].date.getTime();
+  }) : [];
+  
+  const prevRows   = tab==='month'? (calWeeks[calWeeks.length-2]?.rows||[]) : weekPrevRows;
+  const problemItems = buildProblemItems(currRows, prevRows);
+  
+  const total   = tab==='week'? currRows.length : rows.length;
+  const overall = tab==='week'? avg(currRows.flatMap(r=>[r.q1,r.q2,r.q3]).filter(v=>v!=null)) : avg(rows.flatMap(r=>[r.q1,r.q2,r.q3]).filter(v=>v!=null));
 
   // Previous period avg (for summary change indicator)
   useEffect(()=>{
-    const days=tab==='week'?7:30;
-    const ps=new Date(Date.now()-2*days*86400000).toISOString();
-    const pe=new Date(Date.now()-days*86400000).toISOString();
-    supabase.from('feedback').select('q1,q2,q3').eq('cafe_id', process.env.NEXT_PUBLIC_CAFE_ID).gte('created_at',ps).lt('created_at',pe).not('q1','is',null)
-      .then(({data})=>{ if(data?.length){const v=data.flatMap(r=>[r.q1,r.q2,r.q3]).filter(v=>v!=null);setPrevAvg(avg(v));} });
-  },[tab]);
+    if (tab === 'week') {
+      setPrevAvg(avg(weekPrevRows.flatMap(r=>[r.q1,r.q2,r.q3]).filter(v=>v!=null)));
+    } else {
+      const days=30;
+      const ps=new Date(Date.now()-2*days*86400000).toISOString();
+      const pe=new Date(Date.now()-days*86400000).toISOString();
+      supabase.from('feedback').select('q1,q2,q3').eq('cafe_id', process.env.NEXT_PUBLIC_CAFE_ID).gte('created_at',ps).lt('created_at',pe).not('q1','is',null)
+        .then(({data})=>{ if(data?.length){const v=data.flatMap(r=>[r.q1,r.q2,r.q3]).filter(v=>v!=null);setPrevAvg(avg(v));} });
+    }
+  },[tab, weekOffset, rows]);
 
   // Groq / rule insights
   useEffect(()=>{
-    if(!rows.length){setInsightsLoading(false);return;}
-    const ruleInsights=tab==='week'?generateWeekInsights(rows):generateMonthInsights(calWeeks||[]);
+    if(!currRows.length){setInsightsLoading(false);return;}
+    setInsightsLoading(true);
+    const ruleInsights=tab==='week'?generateWeekInsights(currRows):generateMonthInsights(calWeeks||[]);
     fetch('/api/insights',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({tab,overallAvg:overall?.toFixed(2),totalResponses:total,ruleInsights})})
       .then(r=>r.json()).then(d=>setInsights(d.insights?.length?d.insights:ruleInsights))
       .catch(()=>setInsights(ruleInsights)).finally(()=>setInsightsLoading(false));
-  },[rows,tab]);
+  },[rows,tab,weekOffset]);
 
   const change     = (overall!==null&&prevAvg!==null)?overall-prevAvg:null;
   const changeSign = change===null?'':change>0.05?'+':change<-0.05?'':'±';
 
   // Weekday range subtitle for 7-day
   const weekSubtitle = (() => {
-    const mon=getMondayOf(Date.now()), sun=new Date(mon.getTime()+6*86400000);
-    return `${fmtShort(mon)} – ${fmtShort(sun)}`;
+    if (tab !== 'week' || !weekDays) return '';
+    return `${weekDays[0].dateLabel} – ${weekDays[6].dateLabel}`;
   })();
 
-  const barColor = v => v===null?'#e5e7eb':v>=4?'#10b981':v>=3?'#f59e0b':'#ef4444';
+  const barColor = (v, isFuture) => isFuture ? '#f3f4f6' : v===null?'#e5e7eb':v>=4?'#10b981':v>=3?'#f59e0b':'#ef4444';
+
+  const onTouchStart = (e) => setTouchStart(e.targetTouches[0].clientX);
+  const onTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX);
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const dist = touchStart - touchEnd;
+    const swipeThreshold = 50;
+    if (dist > swipeThreshold && weekOffset > 0) setWeekOffset(w => w - 1);
+    if (dist < -swipeThreshold && weekOffset < 8) setWeekOffset(w => w + 1);
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
 
   return (
     <div className="tr-root">
@@ -259,25 +312,34 @@ export default function TrendView({ rows, tab }) {
 
       {/* Rating Trend */}
       <div className="ow-card tr-card">
-        <div className="tr-trend-header">
-          <p className="tr-section-title" style={{margin:0}}>📈 Rating Trend</p>
-          <span className="tr-trend-sub">{tab==='week'?`This week · ${weekSubtitle}`:'Last 30 days · by calendar week'}</span>
+        <div className="tr-trend-header" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p className="tr-section-title" style={{margin:0}}>📈 Rating Trend</p>
+            <span className="tr-trend-sub">{tab==='week'?`Week · ${weekSubtitle}`:'Last 30 days · by calendar week'}</span>
+          </div>
+          {tab === 'week' && (
+            <div className="tr-week-nav">
+              <button onClick={() => setWeekOffset(w => Math.min(w + 1, 8))} disabled={weekOffset >= 8} className="tr-nav-btn">‹</button>
+              <span className="tr-nav-lbl">{weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Last Week' : `${weekOffset}w ago`}</span>
+              <button onClick={() => setWeekOffset(w => Math.max(w - 1, 0))} disabled={weekOffset === 0} className="tr-nav-btn">›</button>
+            </div>
+          )}
         </div>
 
         {/* 7-day bar chart */}
-        {tab==='week'&&dayStrip&&(
-          <div className="tr-chart">
-            {dayStrip.map(({label,dateLabel,avg:colAvg,count},i)=>{
-              const h=colAvg!==null?Math.max(4,Math.round((colAvg/5)*70)):4;
+        {tab==='week'&&weekDays&&(
+          <div className="tr-chart" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+            {weekDays.map(({label,dateLabel,avg:colAvg,count,isFuture},i)=>{
+              const h=colAvg!==null?Math.max(4,Math.round((colAvg/5)*70)):isFuture?70:4;
               return(
-                <div key={i} className="tr-chart-col">
+                <div key={i} className={`tr-chart-col ${isFuture?'tr-chart-col--future':''}`}>
                   <div className="tr-bar-wrap">
                     <span className="tr-chart-val">{colAvg!==null?colAvg.toFixed(1):''}</span>
-                    <div className="tr-bar" style={{height:`${h}px`,background:barColor(colAvg)}}/>
+                    <div className="tr-bar" style={{height:`${h}px`,background:barColor(colAvg, isFuture), opacity: isFuture ? 0.3 : 1}}/>
                   </div>
                   <span className="tr-chart-lbl">{label}</span>
                   <span className="tr-chart-lbl" style={{color:'#c4c4d0'}}>{dateLabel}</span>
-                  {count>0&&<span className="tr-chart-cnt">{count} resp</span>}
+                  {(!isFuture || count > 0) && <span className="tr-chart-cnt">{count} resp</span>}
                 </div>
               );
             })}
