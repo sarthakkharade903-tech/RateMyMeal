@@ -187,22 +187,58 @@ function getMonthlyStats(calWeeks) {
   const weakestWeek = validWeeks.reduce((min, w) => w.avg < min.avg ? w : min, validWeeks[0]);
 
   const consistencyMap = {};
+  const consistencyTimeMap = {};
+  const catWeekAvgs = {};
+
   calWeeks.forEach(w => {
     const cats = [...new Set(w.rows.map(r => r.category).filter(Boolean))];
     cats.forEach(cat => {
       const catRows = w.rows.filter(r => r.category === cat);
       const a = avg(catRows.flatMap(r => [r.q1,r.q2,r.q3]).filter(v => v != null));
-      if (a !== null && a < 3.5) {
-        if (!consistencyMap[cat]) consistencyMap[cat] = 0;
-        consistencyMap[cat]++;
+      if (a !== null) {
+        if (!catWeekAvgs[cat]) catWeekAvgs[cat] = [];
+        catWeekAvgs[cat].push(a);
+
+        if (a < 3.5) {
+          if (!consistencyMap[cat]) consistencyMap[cat] = 0;
+          consistencyMap[cat]++;
+        }
       }
     });
+
+    const timeGrp = { Morning: 0, Afternoon: 0, Evening: 0 };
+    w.rows.forEach(r => {
+      const a = avg([r.q1,r.q2,r.q3].filter(v => v != null));
+      if (a !== null && a < 3.5) {
+        const h = new Date(toMs(r.created_at)).getHours();
+        if (h >= 6 && h < 12) timeGrp.Morning++;
+        else if (h >= 12 && h < 17) timeGrp.Afternoon++;
+        else timeGrp.Evening++;
+      }
+    });
+    
+    let peakT = null; let maxC = 0;
+    Object.entries(timeGrp).forEach(([t, c]) => { if (c > maxC) { maxC = c; peakT = t; } });
+    if (peakT) {
+      if (!consistencyTimeMap[peakT]) consistencyTimeMap[peakT] = 0;
+      consistencyTimeMap[peakT]++;
+    }
   });
 
   const consistencyItems = Object.entries(consistencyMap)
     .map(([cat, count]) => ({ cat, count }))
     .filter(item => item.count >= 2)
     .sort((a, b) => b.count - a.count);
+
+  const stabilityMap = {};
+  Object.entries(catWeekAvgs).forEach(([cat, avgs]) => {
+    if (avgs.length >= 2) {
+      const maxA = Math.max(...avgs);
+      const minA = Math.min(...avgs);
+      if (maxA - minA >= 0.7) stabilityMap[cat] = 'Unstable';
+      else if (maxA - minA <= 0.2) stabilityMap[cat] = 'Stable';
+    }
+  });
 
   const weeklyCardsData = [...calWeeks].map((w, index, arr) => {
     const prevWeek = index > 0 ? arr[index - 1] : null;
@@ -221,7 +257,7 @@ function getMonthlyStats(calWeeks) {
       if (a !== null && a < lowestAvg) { lowestAvg = a; lowestRated = cat; }
     });
 
-    let biggestImprovement = null; let maxImp = 0;
+    let biggestImprovement = null; let maxImp = 0; let impPrevAvg = 0; let impCurrAvg = 0;
     let biggestDecline = null; let maxDec = 0;
     if (prevWeek) {
       Object.keys(catCounts).forEach(cat => {
@@ -230,7 +266,7 @@ function getMonthlyStats(calWeeks) {
         const pAvg = avg(pRows.flatMap(r => [r.q1,r.q2,r.q3]).filter(v => v != null));
         if (a !== null && pAvg !== null) {
           const diff = a - pAvg;
-          if (diff > 0.3 && diff > maxImp) { maxImp = diff; biggestImprovement = cat; }
+          if (diff > 0.3 && diff > maxImp) { maxImp = diff; biggestImprovement = cat; impPrevAvg = pAvg; impCurrAvg = a; }
           if (diff < -0.3 && diff < maxDec) { maxDec = diff; biggestDecline = cat; }
         }
       });
@@ -249,32 +285,39 @@ function getMonthlyStats(calWeeks) {
     let peakComplaintTime = null; let maxC = 0;
     Object.entries(timeGrp).forEach(([t, c]) => { if (c > maxC) { maxC = c; peakComplaintTime = t; } });
 
-    return { ...w, mostReviewed, maxCount, lowestRated, lowestAvg, biggestImprovement, maxImp, biggestDecline, maxDec, peakComplaintTime };
+    return { ...w, mostReviewed, maxCount, lowestRated, lowestAvg, biggestImprovement, maxImp, impPrevAvg, impCurrAvg, biggestDecline, maxDec, peakComplaintTime };
   }).reverse(); 
 
-  return { bestWeek, weakestWeek, consistencyItems, weeklyCardsData, validWeeks };
+  return { bestWeek, weakestWeek, consistencyItems, weeklyCardsData, validWeeks, consistencyTimeMap, stabilityMap };
 }
 
-function generateMonthInsights(consistencyItems, validWeeks) {
+function generateMonthInsights(consistencyItems, validWeeks, consistencyTimeMap, weeklyCardsData) {
   const ins = [];
   if (consistencyItems.length > 0) {
     const topCat = CAT_LABELS[consistencyItems[0].cat] || consistencyItems[0].cat;
-    ins.push(`${topCat} is your most persistent issue, causing low ratings in ${consistencyItems[0].count} of the last ${validWeeks.length} weeks.`);
-    if (consistencyItems.length > 1) {
-      const secondCat = CAT_LABELS[consistencyItems[1].cat] || consistencyItems[1].cat;
-      ins.push(`${secondCat} also shows recurring low ratings (${consistencyItems[1].count} weeks).`);
-    }
+    ins.push(`${topCat} weak for ${consistencyItems[0].count} weeks.`);
   } else {
-    ins.push("No major recurring issues detected across the past month. Consistency is strong.");
+    ins.push("No recurring kitchen issues detected this month.");
   }
   
-  if (validWeeks.length >= 2) {
+  if (consistencyTimeMap) {
+    const times = Object.entries(consistencyTimeMap).sort((a,b) => b[1]-a[1]);
+    if (times.length > 0 && times[0][1] >= 2) {
+      ins.push(`${times[0][0]} complaints recurring.`);
+    }
+  }
+  
+  const latestWeek = weeklyCardsData && weeklyCardsData[0];
+  if (latestWeek && latestWeek.biggestImprovement) {
+    const impCatName = CAT_LABELS[latestWeek.biggestImprovement] || latestWeek.biggestImprovement;
+    ins.push(`${impCatName} quality improved week-over-week.`);
+  } else if (validWeeks.length >= 2) {
     const latest = validWeeks[validWeeks.length - 1];
     const prev = validWeeks[validWeeks.length - 2];
     if (latest.avg && prev.avg) {
       const diff = latest.avg - prev.avg;
-      if (diff > 0.2) ins.push(`Recent performance improved notably from ${prev.avg.toFixed(1)} to ${latest.avg.toFixed(1)}.`);
-      else if (diff < -0.2) ins.push(`Recent performance slipped from ${prev.avg.toFixed(1)} to ${latest.avg.toFixed(1)}.`);
+      if (diff > 0.1) ins.push(`Ratings improved compared to previous week.`);
+      else if (diff < -0.1) ins.push(`Kitchen consistency slipped this week.`);
     }
   }
   return ins.slice(0, 3);
@@ -338,7 +381,7 @@ export default function TrendView({ rows, tab }) {
   useEffect(()=>{
     if(!currRows.length){setInsightsLoading(false);return;}
     setInsightsLoading(true);
-    const ruleInsights=tab==='week'?generateWeekInsights(currRows):generateMonthInsights(monthStats?.consistencyItems || [], monthStats?.validWeeks || []);
+    const ruleInsights=tab==='week'?generateWeekInsights(currRows):generateMonthInsights(monthStats?.consistencyItems || [], monthStats?.validWeeks || [], monthStats?.consistencyTimeMap || {}, monthStats?.weeklyCardsData || []);
     fetch('/api/insights',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({tab,overallAvg:overall?.toFixed(2),totalResponses:total,ruleInsights})})
       .then(r=>r.json()).then(d=>setInsights(d.insights?.length?d.insights:ruleInsights))
@@ -473,30 +516,49 @@ export default function TrendView({ rows, tab }) {
       {tab === 'month' && monthStats?.weeklyCardsData?.length > 0 && (
         <div className="ow-card tr-card" style={{ paddingBottom: '0.5rem' }}>
           <p className="tr-section-title">📅 Weekly Timeline</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-            {monthStats.weeklyCardsData.map((w, i) => (
-              <div key={i} style={{ padding: '0.75rem', border: '1px solid #ebebf5', borderRadius: '8px', cursor: 'pointer', transition: 'background 0.15s' }} onClick={() => toggleWeek(i)}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1a1a2e', marginBottom: '0.1rem' }}>{w.label}</div>
-                    <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>{w.count} resp {w.lowestRated && <span style={{color:'#b91c1c', fontWeight:600}}>· ⚠️ {CAT_LABELS[w.lowestRated]||w.lowestRated}</span>}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.6rem' }}>
+            {monthStats.weeklyCardsData.map((w, i) => {
+              if (w.count === 0) {
+                return (
+                  <div key={i} style={{ padding: '0.6rem 0.75rem', border: '1px dashed #cbd5e1', borderRadius: '8px', opacity: 0.6, background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#64748b' }}>{w.label}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>No feedback this week</div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span style={{ fontSize: '1rem', fontWeight: 800, color: barColor(w.avg, false) }}>{w.avg !== null ? w.avg.toFixed(1) : '—'}</span>
-                    <span style={{ fontSize: '0.9rem', color: '#ccc', transition: 'transform 0.2s', transform: expandedWeeks[i] ? 'rotate(180deg)' : 'none' }}>▼</span>
+                );
+              }
+
+              const isRecurringItem = w.lowestRated && monthStats.consistencyItems.some(ci => ci.cat === w.lowestRated);
+              const isRecurringTime = w.peakComplaintTime && monthStats.consistencyTimeMap[w.peakComplaintTime] >= 2;
+
+              return (
+                <div key={i} style={{ padding: '0.75rem', border: '1px solid #ebebf5', borderRadius: '8px', cursor: 'pointer', transition: 'background 0.15s' }} onClick={() => toggleWeek(i)}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1a1a2e', marginBottom: '0.3rem' }}>{w.label}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#6b7280', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                        <span>{w.count} resp</span>
+                        {w.lowestRated && <span style={{color:'#dc2626', fontWeight:600}}>· ⚠️ {CAT_LABELS[w.lowestRated]||w.lowestRated}</span>}
+                        {isRecurringItem && <span style={{ background: '#fef2f2', color: '#991b1b', padding: '0.15rem 0.35rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 600 }}>🔁 Repeated</span>}
+                        {isRecurringTime && <span style={{ background: '#fffbeb', color: '#b45309', padding: '0.15rem 0.35rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 600 }}>⚠ {w.peakComplaintTime}s recurring</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '1rem', fontWeight: 800, color: barColor(w.avg, false) }}>{w.avg !== null ? w.avg.toFixed(1) : '—'}</span>
+                      <span style={{ fontSize: '0.9rem', color: '#ccc', transition: 'transform 0.2s', transform: expandedWeeks[i] ? 'rotate(180deg)' : 'none' }}>▼</span>
+                    </div>
                   </div>
+                  {expandedWeeks[i] && (
+                    <div style={{ marginTop: '0.7rem', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: '#f8fafc', padding: '0.6rem 0.8rem', borderRadius: '6px', borderLeft: '3px solid #94a3b8' }}>
+                      {w.biggestImprovement && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', padding:'0.2rem 0.2rem' }}><span style={{color:'#64748b'}}>Most Improved:</span> <span style={{fontWeight:600,color:'#059669'}}>{CAT_LABELS[w.biggestImprovement]||w.biggestImprovement} ({w.impPrevAvg.toFixed(1)} → {w.impCurrAvg.toFixed(1)})</span></div>}
+                      {w.lowestRated && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', background: '#fef2f2', padding: '0.4rem 0.4rem', borderRadius: '4px', margin: '0.1rem 0' }}><span style={{fontWeight:700, color:'#991b1b'}}>Lowest Rated:</span> <span style={{fontWeight:700,color:'#dc2626'}}>{CAT_LABELS[w.lowestRated]||w.lowestRated} ({w.lowestAvg.toFixed(1)}) {monthStats.stabilityMap[w.lowestRated] === 'Unstable' ? '· Unstable' : ''}</span></div>}
+                      {w.peakComplaintTime && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', background: '#fffbeb', padding: '0.4rem 0.4rem', borderRadius: '4px', margin: '0.1rem 0' }}><span style={{fontWeight:700, color:'#b45309'}}>Peak Complaints:</span> <span style={{fontWeight:700, color:'#b45309'}}>{w.peakComplaintTime}s</span></div>}
+                      {w.biggestDecline && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', padding:'0.2rem 0.2rem' }}><span style={{color:'#64748b'}}>Biggest Decline:</span> <span style={{fontWeight:600,color:'#dc2626'}}>{CAT_LABELS[w.biggestDecline]||w.biggestDecline} ({w.maxDec.toFixed(1)})</span></div>}
+                      {w.mostReviewed && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', padding:'0.2rem 0.2rem' }}><span style={{color:'#64748b'}}>Most Reviewed:</span> <span style={{fontWeight:600, color:'#334155'}}>{CAT_LABELS[w.mostReviewed]||w.mostReviewed} ({w.maxCount}) {monthStats.stabilityMap[w.mostReviewed] ? <span style={{color: monthStats.stabilityMap[w.mostReviewed] === 'Stable' ? '#059669' : '#dc2626'}}>· {monthStats.stabilityMap[w.mostReviewed]}</span> : ''}</span></div>}
+                    </div>
+                  )}
                 </div>
-                {expandedWeeks[i] && (
-                  <div style={{ marginTop: '0.8rem', paddingTop: '0.6rem', borderTop: '1px dashed #e5e7eb', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    {w.mostReviewed && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Most Reviewed:</span> <span style={{fontWeight:600}}>{CAT_LABELS[w.mostReviewed]||w.mostReviewed} ({w.maxCount})</span></div>}
-                    {w.lowestRated && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Lowest Rated:</span> <span style={{fontWeight:600,color:'#dc2626'}}>{CAT_LABELS[w.lowestRated]||w.lowestRated} ({w.lowestAvg.toFixed(1)})</span></div>}
-                    {w.biggestImprovement && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Most Improved:</span> <span style={{fontWeight:600,color:'#059669'}}>{CAT_LABELS[w.biggestImprovement]||w.biggestImprovement} (+{w.maxImp.toFixed(1)})</span></div>}
-                    {w.biggestDecline && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Biggest Decline:</span> <span style={{fontWeight:600,color:'#dc2626'}}>{CAT_LABELS[w.biggestDecline]||w.biggestDecline} ({w.maxDec.toFixed(1)})</span></div>}
-                    {w.peakComplaintTime && <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem' }}><span style={{color:'#6b7280'}}>Peak Complaints:</span> <span style={{fontWeight:600}}>{w.peakComplaintTime}s</span></div>}
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
